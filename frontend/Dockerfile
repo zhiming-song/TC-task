@@ -21,8 +21,9 @@ FROM ${NGINX_IMAGE} AS runner
 
 ENV TZ=Asia/Shanghai
 
-# 产物 base 为 /tc/，因此放到 html/tc 下，使 /tc/assets/... 能直接命中
-COPY --from=builder /app/dist /usr/share/nginx/html/tc
+# 产物 base 为 /tc/（构建期注入），但容器自身只负责在根 / 提供静态文件。
+# /tc/ 前缀由外层 nginx-gateway 的 tc-agent.conf 剥离后转发到本容器根路径。
+COPY --from=builder /app/dist /usr/share/nginx/html
 RUN cat > /etc/nginx/conf.d/default.conf <<'EOF'
 server {
   listen 80;
@@ -31,28 +32,9 @@ server {
   root /usr/share/nginx/html;
   index index.html;
 
-  # API 反代到后端容器；SSE 流式必须关闭缓冲
-  location /tc/api/ {
-    proxy_pass http://tc-agent-backend:8000/api/;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Connection '';
-    proxy_buffering off;
-    proxy_cache off;
-    proxy_read_timeout 300s;
-    chunked_transfer_encoding off;
-  }
-
-  # 前端 SPA，兜底回 /tc/index.html
-  location /tc/ {
-    try_files $uri $uri/ /tc/index.html;
-  }
-
-  location = / {
-    return 302 /tc/;
+  # SPA：所有路径兜底回 index.html（含 /assets 等静态资源由 try_files 优先命中）
+  location / {
+    try_files $uri $uri/ /index.html;
   }
 }
 EOF
@@ -60,6 +42,6 @@ EOF
 EXPOSE 80
 
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=5s \
-  CMD wget -qO- http://127.0.0.1/tc/ >/dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
