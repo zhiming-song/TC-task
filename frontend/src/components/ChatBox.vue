@@ -1,0 +1,671 @@
+<script setup>
+import { nextTick, onMounted, ref } from 'vue'
+import { chatStream } from '../api/agent'
+import HotelCard from './HotelCard.vue'
+import TicketCard from './TicketCard.vue'
+import TransportCard from './TransportCard.vue'
+
+const props = defineProps({
+  initialMessage: {
+    type: String,
+    default: '',
+  },
+})
+
+const messages = ref([])
+const input = ref('')
+const loading = ref(false)
+const listEl = ref(null)
+const starters = [
+  '我想规划一次多人旅行',
+  '帮我整理这段群聊里的出行需求',
+  '北京出发去上海，5人，玩3天',
+]
+
+function formatMessage(content) {
+  const escaped = content
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+
+  const lines = escaped.split('\n')
+  const output = []
+  const inline = (line) => line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  const cells = (line) => line.slice(1, -1).split('|').map((cell) => inline(cell.trim()))
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    const nextLine = lines[index + 1] || ''
+    if (/^\|.*\|$/.test(line.trim()) && /^\|[\s|:\-]+\|$/.test(nextLine.trim())) {
+      const headers = cells(line.trim())
+      const rows = []
+      index += 2
+      while (index < lines.length && /^\|.*\|$/.test(lines[index].trim())) {
+        rows.push(cells(lines[index].trim()))
+        index += 1
+      }
+      index -= 1
+      output.push(`<div class="md-table-wrap"><table><thead><tr>${headers.map((cell) => `<th>${cell}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`)
+      continue
+    }
+
+    const withBold = inline(line)
+    if (withBold.startsWith('### ')) output.push(`<h4>${withBold.slice(4)}</h4>`)
+    else if (withBold.startsWith('## ')) output.push(`<h3>${withBold.slice(3)}</h3>`)
+    else if (withBold.startsWith('# ')) output.push(`<h2>${withBold.slice(2)}</h2>`)
+    else if (withBold.startsWith('- ')) output.push(`<div class="md-list">• ${withBold.slice(2)}</div>`)
+    else if (/^\d+\. /.test(withBold)) output.push(`<div class="md-list">${withBold}</div>`)
+    else if (/^---+$/.test(withBold.trim())) output.push('<hr>')
+    else output.push(withBold ? `<div>${withBold}</div>` : '<div class="md-gap"></div>')
+  }
+
+  return output.join('')
+}
+
+async function scrollToBottom() {
+  await nextTick()
+  if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight
+}
+
+async function send(payloadOverride = null) {
+  const text = input.value.trim()
+  if (!text || loading.value) return
+
+  messages.value.push({ role: 'user', content: text })
+  input.value = ''
+  loading.value = true
+
+  // 发给后端的历史（不含即将占位的空回复）
+  const payload = Array.isArray(payloadOverride)
+    ? payloadOverride
+    : messages.value.map(({ role, content }) => ({ role, content }))
+
+  messages.value.push({ role: 'assistant', content: '', cards: [] })
+  const index = messages.value.length - 1
+  await scrollToBottom()
+
+  try {
+    await chatStream(
+      payload,
+      (token) => {
+        messages.value[index].content += token
+        scrollToBottom()
+      },
+      (card) => {
+        messages.value[index].cards.push(card)
+        scrollToBottom()
+      },
+    )
+    return true
+  } catch (err) {
+    messages.value[index].content = err.message.includes('Content Exists Risk')
+      ? '本次请求未通过服务安全校验，请重试或换一种表述。'
+      : `出错了：${err.message}`
+    return false
+  } finally {
+    loading.value = false
+    scrollToBottom()
+  }
+}
+
+function useStarter(text) {
+  if (loading.value) return
+  input.value = text
+  send()
+}
+
+function selectTransport(msg, card) {
+  if (loading.value || msg.selectionConfirmed) return
+  msg.selectedCardId = card.id
+}
+
+function transportCards(msg) {
+  return msg.cards?.filter((card) => card.type === 'transport_offer') || []
+}
+
+function hotelCards(msg) {
+  return msg.cards?.filter((card) => card.type === 'hotel_offer') || []
+}
+
+function ticketCards(msg) {
+  return msg.cards?.filter((card) => card.type === 'ticket_offer') || []
+}
+
+function selectHotel(msg, card) {
+  if (loading.value || msg.hotelSelectionConfirmed) return
+  msg.selectedHotelId = card.id
+}
+
+function selectTicket(msg, card) {
+  if (loading.value || msg.ticketSelectionConfirmed) return
+  const selectedIds = msg.selectedTicketIds || []
+  msg.selectedTicketIds = selectedIds.includes(card.id)
+    ? selectedIds.filter((id) => id !== card.id)
+    : [...selectedIds, card.id]
+}
+
+async function continueWithTransport(msg) {
+  if (loading.value || msg.selectionConfirmed) return
+  const selected = msg.cards?.find((card) => card.id === msg.selectedCardId)
+  if (!selected) return
+
+  const transportName = selected.transport_type === 'train' ? '火车票方案' : '机票方案'
+  const latestUserMessage = [...messages.value].reverse().find((item) => item.role === 'user')
+  const importedChat = messages.value.find(
+    (item) => item.role === 'user' && item.content.includes('【群聊记录】'),
+  )
+  const lodgingHints = importedChat?.content
+    .split('\n')
+    .filter((line) => /住|酒店|外滩|迪士尼附近|火车站附近/.test(line))
+    .slice(0, 5)
+    .join('；')
+  const visibleMessage = `我选择${transportName}（${selected.origin}往返${selected.destination}），进入下一项：酒店选择。`
+  const compactContext = [
+    `已确认行程：${selected.origin}往返${selected.destination}，`,
+    `${selected.departure_date}出发，${selected.return_date}返回，${selected.travelers}位出行人。`,
+    latestUserMessage?.content ? `组织者最近确认：${latestUserMessage.content}。` : '',
+    lodgingHints ? `群聊住宿偏好摘要：${lodgingHints}。` : '',
+    `已选择${transportName}。现在只进入下一项，请直接搜索并展示多个酒店库存候选，不要再次追问住宿区域；如果没有区域偏好就使用热门商圈。`,
+  ].join('')
+
+  msg.selectionConfirmed = true
+  input.value = visibleMessage
+  await nextTick()
+  const succeeded = await send([{ role: 'user', content: compactContext }])
+  if (!succeeded) msg.selectionConfirmed = false
+}
+
+async function continueWithHotel(msg) {
+  if (loading.value || msg.hotelSelectionConfirmed) return
+  const selected = hotelCards(msg).find((card) => card.id === msg.selectedHotelId)
+  if (!selected) return
+
+  msg.hotelSelectionConfirmed = true
+  input.value = `我选择${selected.title}，进入下一项：景点和门票选择。`
+  const context = `已选择酒店：${selected.title}，位置${selected.location}，入住${selected.checkin_date}，离店${selected.checkout_date}，${selected.rooms}间房。现在只进入下一项，请推荐景点和门票候选。`
+  await nextTick()
+  const succeeded = await send([{ role: 'user', content: context }])
+  if (!succeeded) msg.hotelSelectionConfirmed = false
+}
+
+async function continueWithTicket(msg) {
+  if (loading.value || msg.ticketSelectionConfirmed) return
+  const selected = ticketCards(msg).filter((card) => msg.selectedTicketIds?.includes(card.id))
+  if (!selected.length) return
+
+  msg.ticketSelectionConfirmed = true
+  const productNames = selected.map((card) => card.title).join('、')
+  input.value = `我选择${productNames}，请记录产品选择并继续生成行程草案。`
+  const context = `目的地${selected[0].destination}，${selected[0].travelers}位出行人，已选择门票商品：${productNames}。请记录选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
+  await nextTick()
+  const succeeded = await send([{ role: 'user', content: context }])
+  if (!succeeded) msg.ticketSelectionConfirmed = false
+}
+
+function onKeydown(event) {
+  // Enter 发送，Shift+Enter 换行
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    send()
+  }
+}
+
+onMounted(async () => {
+  const imported = props.initialMessage.trim()
+  if (!imported) return
+  input.value = imported
+  await nextTick()
+  send()
+})
+</script>
+
+<template>
+  <div class="chat">
+    <div ref="listEl" class="list">
+      <div v-if="!messages.length" class="empty">
+        <strong>把群聊记录或出行想法发给我</strong>
+        <span>我会依次确认人数、日期、城市和偏好，再规划交通、酒店、景点与ABC方案。</span>
+        <div class="starter-list">
+          <button v-for="text in starters" :key="text" class="starter" @click="useStarter(text)">
+            {{ text }}
+          </button>
+        </div>
+        <small>当前搜索结果为演示估价，不代表实时库存或最终成交价。</small>
+      </div>
+
+      <div v-for="(msg, i) in messages" :key="i" class="row" :class="msg.role">
+        <div class="message-stack">
+          <div class="bubble" :class="{ 'typing-bubble': !msg.content }">
+            <div v-if="msg.content" class="message-rich" v-html="formatMessage(msg.content)"></div>
+            <span v-else class="typing">思考中…</span>
+          </div>
+          <div v-if="transportCards(msg).length" class="card-section-title">
+            <strong>交通库存候选</strong>
+            <span>{{ transportCards(msg).length }} 个方案可对比</span>
+          </div>
+          <div v-if="transportCards(msg).length" class="offer-grid">
+            <TransportCard
+              v-for="card in transportCards(msg)"
+              :key="card.id"
+              :card="card"
+              :selected="msg.selectedCardId === card.id"
+              @select="selectTransport(msg, card)"
+            />
+          </div>
+          <div v-if="transportCards(msg).length" class="choice-bar">
+            <span v-if="msg.selectedCardId">
+              {{ msg.selectionConfirmed ? '已提交所选交通方案' : '已选择一个交通方案' }}
+            </span>
+            <span v-else>请先选择一个交通方案</span>
+            <button
+              class="next-button"
+              type="button"
+              :disabled="loading || !msg.selectedCardId || msg.selectionConfirmed"
+              @click="continueWithTransport(msg)"
+            >
+              {{ msg.selectionConfirmed ? '已进入下一项' : '进入下一项' }}
+              <b v-if="!msg.selectionConfirmed">›</b>
+            </button>
+          </div>
+
+          <div v-if="hotelCards(msg).length" class="card-section-title">
+            <strong>酒店库存候选</strong>
+            <span>{{ hotelCards(msg).length }} 个方案可对比</span>
+          </div>
+          <div v-if="hotelCards(msg).length" class="offer-grid">
+            <HotelCard
+              v-for="card in hotelCards(msg)"
+              :key="card.id"
+              :card="card"
+              :selected="msg.selectedHotelId === card.id"
+              @select="selectHotel(msg, card)"
+            />
+          </div>
+          <div v-if="hotelCards(msg).length" class="choice-bar">
+            <span v-if="msg.selectedHotelId">
+              {{ msg.hotelSelectionConfirmed ? '已提交所选酒店' : '已选择一个酒店方案' }}
+            </span>
+            <span v-else>请先选择一个酒店方案</span>
+            <button
+              class="next-button"
+              type="button"
+              :disabled="loading || !msg.selectedHotelId || msg.hotelSelectionConfirmed"
+              @click="continueWithHotel(msg)"
+            >
+              {{ msg.hotelSelectionConfirmed ? '已进入下一项' : '进入下一项' }}
+              <b v-if="!msg.hotelSelectionConfirmed">›</b>
+            </button>
+          </div>
+
+          <div v-if="ticketCards(msg).length" class="card-section-title">
+            <strong>景点门票库存候选</strong>
+            <span>{{ ticketCards(msg).length }} 个产品可对比</span>
+          </div>
+          <div v-if="ticketCards(msg).length" class="offer-grid">
+            <TicketCard
+              v-for="card in ticketCards(msg)"
+              :key="card.id"
+              :card="card"
+              :selected="msg.selectedTicketIds?.includes(card.id)"
+              @select="selectTicket(msg, card)"
+            />
+          </div>
+          <div v-if="ticketCards(msg).length" class="choice-bar">
+            <span v-if="msg.selectedTicketIds?.length">
+              {{ msg.ticketSelectionConfirmed ? '已提交所选门票' : `已选择 ${msg.selectedTicketIds.length} 个门票产品` }}
+            </span>
+            <span v-else>请先选择一个门票产品</span>
+            <button
+              class="next-button"
+              type="button"
+              :disabled="loading || !msg.selectedTicketIds?.length || msg.ticketSelectionConfirmed"
+              @click="continueWithTicket(msg)"
+            >
+              {{ msg.ticketSelectionConfirmed ? '已生成下一步' : '生成行程' }}
+              <b v-if="!msg.ticketSelectionConfirmed">›</b>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <textarea
+        v-model="input"
+        rows="1"
+        placeholder="粘贴群聊或描述行程，Enter 发送"
+        :disabled="loading"
+        @keydown="onKeydown"
+      ></textarea>
+      <button class="primary send-button" :disabled="loading || !input.trim()" @click="send">
+        {{ loading ? '生成中' : '发送' }}
+      </button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.empty {
+  margin: auto;
+  color: var(--text-muted);
+  font-size: 13px;
+  max-width: 520px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  line-height: 1.6;
+}
+
+.empty strong {
+  color: var(--text);
+  font-size: 17px;
+}
+
+.starter-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.starter {
+  padding: 7px 11px;
+  color: var(--primary);
+  background: #f5f7ff;
+  border-color: #dce3ff;
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+}
+
+.row.user {
+  justify-content: flex-end;
+}
+
+.message-stack {
+  max-width: 76%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row.user .message-stack {
+  align-items: flex-end;
+}
+
+.row.assistant .message-stack {
+  width: 100%;
+  max-width: 94%;
+}
+
+.bubble {
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.row.user .bubble {
+  background: var(--user-bubble);
+  color: #fff;
+}
+
+.row.assistant .bubble {
+  background: var(--assistant-bubble);
+}
+
+.row.assistant .bubble.typing-bubble {
+  width: fit-content;
+  min-width: 82px;
+  align-self: flex-start;
+  padding: 9px 13px;
+}
+
+.card-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.card-section-title strong {
+  font-size: 13px;
+}
+
+.card-section-title span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.offer-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.choice-bar {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px 8px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e1e6ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(38, 56, 92, 0.05);
+}
+
+.choice-bar span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.next-button {
+  flex: 0 0 auto;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #20a05a;
+  font-size: 12px;
+}
+
+.next-button b {
+  margin-left: 4px;
+  font-size: 15px;
+}
+
+.typing {
+  color: var(--text-muted);
+}
+
+.message-rich :deep(h2),
+.message-rich :deep(h3),
+.message-rich :deep(h4) {
+  margin: 10px 0 5px;
+  line-height: 1.35;
+}
+
+.message-rich :deep(h2) {
+  font-size: 17px;
+}
+
+.message-rich :deep(h3) {
+  font-size: 15px;
+}
+
+.message-rich :deep(h4) {
+  font-size: 14px;
+}
+
+.message-rich :deep(.md-list) {
+  padding-left: 2px;
+}
+
+.message-rich :deep(.md-gap) {
+  height: 8px;
+}
+
+.message-rich :deep(hr) {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.message-rich :deep(.md-table-wrap) {
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
+.message-rich :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.message-rich :deep(th),
+.message-rich :deep(td) {
+  padding: 6px 7px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-rich :deep(th) {
+  background: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+
+.composer {
+  border-top: 1px solid var(--border);
+  padding: 12px 22px 16px;
+  padding-bottom: calc(12px + var(--safe-bottom));
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--panel);
+}
+
+textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  max-height: 112px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+
+textarea:focus {
+  border-color: var(--primary);
+}
+
+button {
+  border-radius: 8px;
+  padding: 7px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.send-button {
+  flex: 0 0 auto;
+  min-width: 72px;
+  height: 42px;
+  padding: 0 18px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .list {
+    padding: 16px 14px;
+    gap: 12px;
+  }
+
+  .message-stack {
+    max-width: 82%;
+  }
+
+  .row.assistant .message-stack {
+    max-width: 100%;
+  }
+
+  .bubble {
+    font-size: 15px;
+  }
+
+  .offer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .choice-bar {
+    min-height: 48px;
+  }
+
+  .composer {
+    padding: 10px 14px;
+    padding-bottom: calc(10px + var(--safe-bottom));
+    /* 键盘弹起时表单不被遮挡 */
+    background: var(--panel);
+  }
+
+  textarea {
+    font-size: 16px; /* 16px 可避免 iOS 聚焦时自动放大 */
+  }
+
+  button {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+
+  .send-button {
+    min-width: 64px;
+    height: 42px;
+    padding: 0 14px;
+  }
+}
+</style>

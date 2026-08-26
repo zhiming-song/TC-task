@@ -1,0 +1,45 @@
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --border: #e4e6eb;
+  --text: #1f2329;
+  --text-muted: #8a919b;
+  --primary: #4b6ef5;
+  --user-bubble: #4b6ef5;
+  --assistant-bubble: #f2f3f5;
+  /* 刘海屏 / 底部安全区 */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  /* 禁止移动端双击缩放与文字选中，更接近 App 体验 */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  height: 100vh;
+  height: 100dvh; /* 动态视口高度，避开移动端地址栏 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+}
+
+/* 移动端：占满整个屏幕，去掉外边距与居中卡片 */
+@media (max-width: 768px) {
+  #app {
+    padding: 0;
+    height: 100dvh;
+  }
+}
