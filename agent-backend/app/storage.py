@@ -157,6 +157,16 @@ class TravelRepository:
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS trip_selections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trip_id TEXT NOT NULL REFERENCES trip_sessions(id) ON DELETE CASCADE,
+                    category TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_selection_trip ON trip_selections(trip_id, created_at);
+
                 CREATE TABLE IF NOT EXISTS mock_transport_inventory (
                     product_id TEXT PRIMARY KEY,
                     origin TEXT NOT NULL,
@@ -662,6 +672,7 @@ class TravelRepository:
                 "itinerary_drafts",
                 "plan_options",
                 "vote_drafts",
+                "trip_selections",
             ):
                 rows = connection.execute(
                     f"SELECT * FROM {table} WHERE trip_id = ? ORDER BY created_at DESC",  # noqa: S608
@@ -669,6 +680,22 @@ class TravelRepository:
                 ).fetchall()
                 result[table] = [dict(row) for row in rows]
             return result
+
+    def save_selection(self, trip_id: str, category: str, item: dict[str, Any]) -> int:
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "INSERT INTO trip_selections (trip_id, category, item_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?)",
+                (trip_id, category, str(item.get("id") or ""), _json(item), _now()),
+            )
+            return int(cursor.lastrowid)
+
+    def get_selections(self, trip_id: str) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, category, item_id, payload_json, created_at FROM trip_selections WHERE trip_id = ? ORDER BY created_at",
+                (trip_id,),
+            ).fetchall()
+            return [{**dict(row), "item": json.loads(row["payload_json"])} for row in rows]
 
     def list_trips(self, limit: int = 50) -> list[dict[str, Any]]:
         safe_limit = max(1, min(int(limit), 100))
@@ -689,6 +716,7 @@ class TravelRepository:
                 "itinerary_drafts",
                 "plan_options",
                 "vote_drafts",
+                "trip_selections",
                 "mock_transport_inventory",
                 "mock_hotel_inventory",
                 "mock_ticket_inventory",
