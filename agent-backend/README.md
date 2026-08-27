@@ -25,12 +25,12 @@ SQLite 默认位置：`data/travel_agent.db`。可通过 `SQLITE_PATH` 修改。
 ## 技术栈
 
 | 组件 | 用途 |
-| --- | --- |
-| FastAPI | Web 框架，自动生成 OpenAPI 文档 |
+| --- | --- | 
+| FastAPI | Web 框架，自动生成 OpenAPI 文档 | 
 | Uvicorn | ASGI 服务器 |
-| openai (SDK) | 调用 DeepSeek 的 OpenAI 兼容接口 |
-| Pydantic v2 | 请求/响应校验 |
-| pydantic-settings | 从 `.env` 读取配置 |
+| openai (SDK) | 调用 DeepSeek 的 OpenAI 兼容接口 | 
+| Pydantic v2 | 请求/响应校验 | 
+| pydantic-settings | 从 `.env` 读取配置 | 
 
 要求 Python 3.10+（本机验证于 3.13）。
 
