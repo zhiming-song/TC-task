@@ -21,6 +21,8 @@ const messages = ref([])
 const input = ref('')
 const loading = ref(false)
 const listEl = ref(null)
+const userScrolling = ref(false)
+const scrollTimeout = ref(null)
 const confirmedTransportId = ref('')
 const confirmedHotelId = ref('')
 const confirmedTicketIds = ref([])
@@ -75,9 +77,22 @@ function formatMessage(content) {
   return output.join('')
 }
 
-async function scrollToBottom() {
+async function scrollToBottom(force = false) {
   await nextTick()
-  if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight
+  if (!listEl.value) return
+  const { scrollTop, scrollHeight, clientHeight } = listEl.value
+  const isNearBottom = scrollHeight - scrollTop - clientHeight < 80
+  if (force || !userScrolling.value || isNearBottom) {
+    listEl.value.scrollTop = scrollHeight
+  }
+}
+
+function onScroll() {
+  userScrolling.value = true
+  clearTimeout(scrollTimeout.value)
+  scrollTimeout.value = setTimeout(() => {
+    userScrolling.value = false
+  }, 1500)
 }
 
 /**
@@ -123,6 +138,7 @@ async function send(contextContent = '', suppressCards = false) {
           messages.value[index].content += char
           shown += 1
           await new Promise((resolve) => setTimeout(resolve, 18))
+          scrollToBottom()
         }
       }
       if (!suppressCards && job.cards?.length) messages.value[index].cards = job.cards
@@ -367,7 +383,7 @@ onMounted(async () => {
 
 <template>
   <div class="chat">
-    <div ref="listEl" class="list">
+    <div ref="listEl" class="list" @scroll="onScroll">
       <div v-if="!messages.length" class="empty">
         <strong>把群聊记录或出行想法发给我</strong>
         <span>我会依次确认人数、日期、城市和偏好，再规划交通、酒店、景点与ABC方案。</span>
@@ -388,6 +404,13 @@ onMounted(async () => {
             <p>根据上面的选择，为你生成一份旅行计划汇总页面。</p>
             <a href="#trip-summary" @click.prevent="openSummaryFromLink">旅行计划汇总</a>
           </div>
+          <button
+            v-if="props.showOrderButton && i === messages.length - 1"
+            class="order-button"
+            type="button"
+          >
+            一键统一下单
+          </button>
           <div v-if="transportCards(msg).length" class="card-section-title">
             <strong>交通库存候选</strong>
             <span>{{ transportCards(msg).length }} 个方案可对比</span>
@@ -491,7 +514,6 @@ onMounted(async () => {
         {{ loading ? '生成中' : '发送' }}
       </button>
     </div>
-    <button v-if="props.showOrderButton" class="order-button" type="button">下单</button>
   </div>
 </template>
 
@@ -524,14 +546,15 @@ onMounted(async () => {
 }
 
 .order-button {
-  width: calc(100% - 28px);
-  height: 44px;
-  margin: 10px 14px 14px;
+  width: 100%;
+  height: 40px;
+  margin-top: 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #fff;
   background: var(--primary);
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
 }
 

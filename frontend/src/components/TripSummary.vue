@@ -33,7 +33,15 @@ function cardPrice(card) {
   return card.total_price_yuan ? `¥${card.total_price_yuan}` : ''
 }
 
+// 模块锁定状态：只有在 AI 中已选择的模块才锁定
+function isLocked(section) {
+  return section.selectedIds && section.selectedIds.length > 0
+}
+
 function selectItem(section, card) {
+  // 已锁定的模块不能更改
+  if (isLocked(section)) return
+
   const current = selected.value[section.key] || []
   selected.value[section.key] = section.key === 'ticket'
     ? (current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id])
@@ -51,7 +59,9 @@ function selectedIds(section) {
     <div v-for="section in props.sections" :key="section.key" class="summary-section">
       <div class="section-head">
         <strong>{{ section.title }}</strong>
-        <span>{{ section.locked ? '已锁定' : '可选择' }}</span>
+        <span :class="{ locked: isLocked(section) }">
+          {{ isLocked(section) ? '已在AI中确认 · 无法更改' : '可选择' }}
+        </span>
       </div>
 
       <div v-if="section.cards.length" class="summary-options">
@@ -59,8 +69,12 @@ function selectedIds(section) {
           v-for="card in section.cards"
           :key="card.id"
           class="summary-option"
-          :class="{ selected: selectedIds(section).includes(card.id) }"
+          :class="{
+            selected: selectedIds(section).includes(card.id),
+            locked: isLocked(section)
+          }"
           type="button"
+          :disabled="isLocked(section)"
           @click="selectItem(section, card)"
         >
           <span class="option-radio" :class="{ checked: selectedIds(section).includes(card.id) }" aria-hidden="true"></span>
@@ -70,7 +84,7 @@ function selectedIds(section) {
           </span>
           <span class="option-side">
             <b>{{ cardPrice(card) }}</b>
-            <small>{{ section.selectedIds.includes(card.id) ? '已选' : '选择' }}</small>
+            <small>{{ selectedIds(section).includes(card.id) ? '已选' : '选择' }}</small>
           </span>
         </button>
       </div>
@@ -178,6 +192,25 @@ function selectedIds(section) {
 
 .summary-option.locked {
   cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.summary-option.locked .option-radio {
+  border-color: #c8ceda;
+  background: #fff;
+}
+
+.summary-option.locked .option-radio.checked {
+  border-color: #27a65a;
+  background: #27a65a;
+}
+
+.summary-option.locked .option-radio.checked::after {
+  background: #fff;
+}
+
+.section-head .locked {
+  color: #f05a29;
 }
 
 .option-main {
