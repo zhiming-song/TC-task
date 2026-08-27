@@ -69,18 +69,19 @@ async function scrollToBottom() {
   if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight
 }
 
-async function send(payloadOverride = null) {
+async function send(contextContent = '') {
   const text = input.value.trim()
   if (!text || loading.value) return
 
-  messages.value.push({ role: 'user', content: text })
+  messages.value.push({ role: 'user', content: text, apiContent: contextContent || text })
   input.value = ''
   loading.value = true
 
-  // 发给后端的历史（不含即将占位的空回复）
-  const payload = Array.isArray(payloadOverride)
-    ? payloadOverride
-    : messages.value.map(({ role, content }) => ({ role, content }))
+  // 发给后端的历史（不含即将占位的空回复），保留选项流转的结构化上下文
+  const payload = messages.value.map(({ role, content, apiContent }) => ({
+    role,
+    content: apiContent || content,
+  }))
 
   messages.value.push({ role: 'assistant', content: '', cards: [] })
   const index = messages.value.length - 1
@@ -163,6 +164,7 @@ async function continueWithTransport(msg) {
     .join('；')
   const visibleMessage = `我选择${transportName}（${selected.origin}往返${selected.destination}），进入下一项：酒店选择。`
   const compactContext = [
+    `行程ID：${selected.trip_id}。`,
     `已确认行程：${selected.origin}往返${selected.destination}，`,
     `${selected.departure_date}出发，${selected.return_date}返回，${selected.travelers}位出行人。`,
     latestUserMessage?.content ? `组织者最近确认：${latestUserMessage.content}。` : '',
@@ -173,7 +175,7 @@ async function continueWithTransport(msg) {
   msg.selectionConfirmed = true
   input.value = visibleMessage
   await nextTick()
-  const succeeded = await send([{ role: 'user', content: compactContext }])
+  const succeeded = await send(compactContext)
   if (!succeeded) msg.selectionConfirmed = false
 }
 
@@ -184,9 +186,9 @@ async function continueWithHotel(msg) {
 
   msg.hotelSelectionConfirmed = true
   input.value = `我选择${selected.title}，进入下一项：景点和门票选择。`
-  const context = `已选择酒店：${selected.title}，位置${selected.location}，入住${selected.checkin_date}，离店${selected.checkout_date}，${selected.rooms}间房。现在只进入下一项，请推荐景点和门票候选。`
+  const context = `行程ID：${selected.trip_id}。已选择酒店：${selected.title}，位置${selected.location}，入住${selected.checkin_date}，离店${selected.checkout_date}，${selected.rooms}间房。现在只进入下一项，请推荐景点和门票候选。`
   await nextTick()
-  const succeeded = await send([{ role: 'user', content: context }])
+  const succeeded = await send(context)
   if (!succeeded) msg.hotelSelectionConfirmed = false
 }
 
@@ -198,9 +200,9 @@ async function continueWithTicket(msg) {
   msg.ticketSelectionConfirmed = true
   const productNames = selected.map((card) => card.title).join('、')
   input.value = `我选择${productNames}，请记录产品选择并继续生成行程草案。`
-  const context = `目的地${selected[0].destination}，${selected[0].travelers}位出行人，已选择门票商品：${productNames}。请记录选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
+  const context = `行程ID：${selected[0].trip_id}。目的地${selected[0].destination}，${selected[0].travelers}位出行人，已选择门票商品：${productNames}。请记录选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
   await nextTick()
-  const succeeded = await send([{ role: 'user', content: context }])
+  const succeeded = await send(context)
   if (!succeeded) msg.ticketSelectionConfirmed = false
 }
 
