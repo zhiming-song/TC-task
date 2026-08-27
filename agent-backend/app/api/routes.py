@@ -72,6 +72,25 @@ def trip_data(trip_id: str) -> dict:
     return data
 
 
+@router.post("/trips/{trip_id}/selections")
+def save_trip_selection(trip_id: str, payload: dict) -> dict:
+    category = str(payload.get("category") or "").strip()
+    item = payload.get("item")
+    if category not in {"transport", "hotel", "ticket"} or not isinstance(item, dict):
+        raise HTTPException(status_code=422, detail="category 必须为 transport、hotel 或 ticket，且 item 必须为对象")
+    if not repository.trip_exists(trip_id):
+        raise HTTPException(status_code=404, detail="行程不存在")
+    selection_id = repository.save_selection(trip_id, category, item)
+    return {"id": selection_id, "trip_id": trip_id, "category": category, "item": item}
+
+
+@router.get("/trips/{trip_id}/selections")
+def trip_selections(trip_id: str) -> dict:
+    if not repository.trip_exists(trip_id):
+        raise HTTPException(status_code=404, detail="行程不存在")
+    return {"trip_id": trip_id, "items": repository.get_selections(trip_id)}
+
+
 @router.get("/trips")
 def trips(limit: int = 50) -> dict:
     """列出SQLite中最近更新的行程。"""

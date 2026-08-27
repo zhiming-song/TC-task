@@ -1,6 +1,6 @@
 <script setup>
 import { nextTick, onMounted, ref } from 'vue'
-import { createChatJob, pollChatJob } from '../api/agent'
+import { createChatJob, pollChatJob, saveTripSelection } from '../api/agent'
 import HotelCard from './HotelCard.vue'
 import TicketCard from './TicketCard.vue'
 import TransportCard from './TransportCard.vue'
@@ -183,17 +183,19 @@ async function continueWithTransport(msg) {
     .filter((line) => /住|酒店|外滩|迪士尼附近|火车站附近/.test(line))
     .slice(0, 5)
     .join('；')
-  const visibleMessage = `我选择${transportName}（${selected.origin}往返${selected.destination}），进入下一项：酒店选择。`
+  const visibleMessage = `我已选择交通方案：${selected.title || transportName}；${selected.origin} → ${selected.destination}，去程 ${selected.departure_date} ${selected.departure_time} 出发，${selected.arrival_time} 到达，返程 ${selected.return_date}，总价 ¥${selected.total_price_yuan}（${selected.travelers} 人）。请基于以上已选交通方案执行酒店推荐。`
   const compactContext = [
     `行程ID：${selected.trip_id}。`,
     `已确认行程：${selected.origin}往返${selected.destination}，`,
     `${selected.departure_date}出发，${selected.return_date}返回，${selected.travelers}位出行人。`,
+    `已选交通完整数据：${JSON.stringify(selected)}。`,
     latestUserMessage?.content ? `组织者最近确认：${latestUserMessage.content}。` : '',
     lodgingHints ? `群聊住宿偏好摘要：${lodgingHints}。` : '',
     `已选择${transportName}。现在只进入下一项，请直接搜索并展示多个酒店库存候选，不要再次追问住宿区域；如果没有区域偏好就使用热门商圈。`,
   ].join('')
 
   msg.selectionConfirmed = true
+  await saveTripSelection(selected.trip_id, 'transport', selected)
   input.value = visibleMessage
   await nextTick()
   const succeeded = await send(compactContext)
@@ -206,8 +208,9 @@ async function continueWithHotel(msg) {
   if (!selected) return
 
   msg.hotelSelectionConfirmed = true
-  input.value = `我选择${selected.title}，进入下一项：景点和门票选择。`
-  const context = `行程ID：${selected.trip_id}。已选择酒店：${selected.title}，位置${selected.location}，入住${selected.checkin_date}，离店${selected.checkout_date}，${selected.rooms}间房。现在只进入下一项，请推荐景点和门票候选。`
+  await saveTripSelection(selected.trip_id, 'hotel', selected)
+  input.value = `我已选择酒店方案：${selected.title}；位置：${selected.location}，入住 ${selected.checkin_date}，离店 ${selected.checkout_date}，${selected.rooms} 间房，共 ${selected.nights} 晚，总价 ¥${selected.total_price_yuan}。请基于以上已选交通和酒店方案执行景点/门票推荐。`
+  const context = `行程ID：${selected.trip_id}。已选择酒店完整数据：${JSON.stringify(selected)}。现在只进入下一项，请推荐景点和门票候选。`
   await nextTick()
   const succeeded = await send(context)
   if (!succeeded) msg.hotelSelectionConfirmed = false
@@ -219,9 +222,10 @@ async function continueWithTicket(msg) {
   if (!selected.length) return
 
   msg.ticketSelectionConfirmed = true
+  await Promise.all(selected.map((item) => saveTripSelection(item.trip_id, 'ticket', item)))
   const productNames = selected.map((card) => card.title).join('、')
   input.value = `我选择${productNames}，请记录产品选择并继续生成行程草案。`
-  const context = `行程ID：${selected[0].trip_id}。目的地${selected[0].destination}，${selected[0].travelers}位出行人，已选择门票商品：${productNames}。请记录选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
+  const context = `行程ID：${selected[0].trip_id}。已选择门票完整数据：${JSON.stringify(selected)}。请记录选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
   await nextTick()
   const succeeded = await send(context)
   if (!succeeded) msg.ticketSelectionConfirmed = false
