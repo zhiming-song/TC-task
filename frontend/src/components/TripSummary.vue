@@ -25,31 +25,33 @@ const props = defineProps({
 
 const emit = defineEmits(['select-section-item', 'confirm', 'defer'])
 
+// 当前用户（群友之一）
+const CURRENT_USER = 'Dora'
+
 // 群友颜色映射
 const userColors = {
   林一: '#FF8A1F', Evan: '#2E7BE6', 小北: '#7C5CFC',
   程程: '#00B86C', Dora: '#FF5E94',
 }
-const userShort = { 林一: '林', Evan: 'E', 小北: '北', 程程: '程', Dora: 'D' }
 const allUsers = ['林一', 'Evan', '小北', '程程', 'Dora']
 
-// 当前用户投票（用于追踪本地交互）
+// 当前用户投票（cardId 或 null）
 const myVotes = reactive({
   transport: null,
   hotel: null,
   ticket: null,
 })
 
-// 投票状态（key = section key, value = array of voter names）
+// 投票状态（key = section key, value = { cardId: [voterNames] }）
 const voteState = reactive({
-  transport: ['小北', 'Dora'],  // flight-A 已有2票
-  hotel: ['林一', 'Evan'],       // hotel-B 已有2票
-  ticket: ['小北', 'Dora', '林一'], // ticket-1 已有3票
+  transport: {},  // { 'card-id': ['小北', 'Dora'] }
+  hotel: {},
+  ticket: {},
 })
 
 // 更新投票数据（供外部调用）
 function updateVoteData(sectionKey, cardId, voters) {
-  voteState[sectionKey] = voters || []
+  voteState[sectionKey] = { [cardId]: voters || [] }
 }
 
 // 暴露给父组件
@@ -67,16 +69,8 @@ function isSelected(section, card) {
 
 // 获取卡片已投票的人
 function getVoters(section, card) {
-  if (section.key === 'transport') {
-    return voteState.transport
-  }
-  if (section.key === 'hotel') {
-    return voteState.hotel
-  }
-  if (section.key === 'ticket') {
-    return voteState.ticket
-  }
-  return []
+  const sectionVotes = voteState[section.key] || {}
+  return sectionVotes[card.id] || []
 }
 
 // 获取某卡片的投票数
@@ -84,10 +78,15 @@ function getVoteCount(section, card) {
   return getVoters(section, card).length
 }
 
-// 获取总投票数
+// 获取总投票数（去重人数）
 const totalVoted = computed(() => {
-  const all = [...voteState.transport, ...voteState.hotel, ...voteState.ticket]
-  return new Set(all).size
+  const unique = new Set()
+  Object.values(voteState).forEach(sectionVotes => {
+    Object.values(sectionVotes).forEach(voters => {
+      voters.forEach(v => unique.add(v))
+    })
+  })
+  return unique.size
 })
 
 // 卡片标题
@@ -139,17 +138,36 @@ function handleCardClick(section, card) {
 function handleVote(section, card) {
   if (isLocked(section)) return
   
+  const key = section.key
+  
   // 切换投票
-  if (myVotes[section.key] === card.id) {
+  if (myVotes[key] === card.id) {
     // 取消投票
-    myVotes[section.key] = null
+    myVotes[key] = null
+    // 从 voteState 中移除当前用户
+    const sectionVotes = voteState[key] || {}
+    const voters = sectionVotes[card.id] || []
+    voteState[key] = { ...sectionVotes, [card.id]: voters.filter(v => v !== CURRENT_USER) }
   } else {
-    // 投票
-    myVotes[section.key] = card.id
+    // 先从旧卡片移除当前用户
+    if (myVotes[key]) {
+      const oldVoters = voteState[key][myVotes[key]] || []
+      voteState[key] = {
+        ...voteState[key],
+        [myVotes[key]]: oldVoters.filter(v => v !== CURRENT_USER)
+      }
+    }
+    // 投新卡片
+    myVotes[key] = card.id
+    const sectionVotes = voteState[key] || {}
+    const voters = sectionVotes[card.id] || []
+    if (!voters.includes(CURRENT_USER)) {
+      voteState[key] = { ...sectionVotes, [card.id]: [...voters, CURRENT_USER] }
+    }
   }
   
   // 通知父组件
-  emit('select-section-item', { sectionKey: section.key, cardId: myVotes[section.key] })
+  emit('select-section-item', { sectionKey: key, cardId: myVotes[key] })
 }
 
 // 确认投票
@@ -174,6 +192,35 @@ function getServiceClass(svc) {
   if (svc.includes('提前') || svc.includes('含早') || svc.includes('含餐')) return 'svc-blue'
   if (svc.includes('取消') || svc.includes('退')) return 'svc-gray'
   return 'svc-green'
+}
+
+// 获取排序后的投票人列表（当前用户优先，其他按顺序）
+function getSortedVoters(section, card) {
+  const voters = getVoters(section, card)
+  const sorted = []
+  // 当前用户优先
+  if (voters.includes(CURRENT_USER)) {
+    sorted.push(CURRENT_USER)
+  }
+  // 其他投票人按 allUsers 顺序
+  allUsers.forEach(u => {
+    if (u !== CURRENT_USER && voters.includes(u)) {
+      sorted.push(u)
+    }
+  })
+  return sorted
+}
+
+// 判断当前用户是否投了此卡片
+function hasVoted(section, card) {
+  return getVoters(section, card).includes(CURRENT_USER)
+}
+
+// 获取空槽（未投票的位置）
+function getEmptySlots(section, card) {
+  const voters = getVoters(section, card)
+  const total = 5
+  return Math.max(0, total - voters.length)
 }
 </script>
 
@@ -282,14 +329,20 @@ function getServiceClass(svc) {
             </div>
             <!-- 投票栏 -->
             <div class="vote-bar compact">
-              <div class="vote-voters">
+              <div class="vote-avatars">
                 <div
-                  v-for="(voter, idx) in allUsers"
-                  :key="idx"
-                  class="vote-voter"
-                  :class="{ empty: !getVoters(section, card).includes(voter) }"
-                  :style="getVoters(section, card).includes(voter) ? { background: userColors[voter] } : {}"
-                >{{ userShort[voter] }}</div>
+                  v-for="voter in getSortedVoters(section, card)"
+                  :key="voter"
+                  class="vote-avatar"
+                  :class="{ 'is-me': voter === CURRENT_USER }"
+                  :style="{ background: userColors[voter] }"
+                  :title="voter"
+                >{{ voter[0] }}</div>
+                <div
+                  v-for="n in getEmptySlots(section, card)"
+                  :key="'empty-' + n"
+                  class="vote-avatar empty"
+                >?</div>
               </div>
               <div class="vote-count">{{ getVoteCount(section, card) }}票</div>
             </div>
@@ -357,14 +410,20 @@ function getServiceClass(svc) {
           <!-- 投票栏 -->
           <div class="vote-bar">
             <div class="vote-left">
-              <div class="vote-voters">
+              <div class="vote-avatars">
                 <div
-                  v-for="(voter, idx) in allUsers"
-                  :key="idx"
-                  class="vote-voter"
-                  :class="{ empty: !getVoters(section, card).includes(voter) }"
-                  :style="getVoters(section, card).includes(voter) ? { background: userColors[voter] } : {}"
-                >{{ userShort[voter] }}</div>
+                  v-for="voter in getSortedVoters(section, card)"
+                  :key="voter"
+                  class="vote-avatar"
+                  :class="{ 'is-me': voter === CURRENT_USER }"
+                  :style="{ background: userColors[voter] }"
+                  :title="voter"
+                >{{ voter[0] }}</div>
+                <div
+                  v-for="n in getEmptySlots(section, card)"
+                  :key="'empty-' + n"
+                  class="vote-avatar empty"
+                >?</div>
               </div>
               <div class="vote-count"><strong>{{ getVoteCount(section, card) }}</strong>人投票</div>
             </div>
@@ -412,14 +471,20 @@ function getServiceClass(svc) {
             </div>
             <!-- 投票栏 -->
             <div class="vote-bar compact">
-              <div class="vote-voters">
+              <div class="vote-avatars">
                 <div
-                  v-for="(voter, idx) in allUsers"
-                  :key="idx"
-                  class="vote-voter"
-                  :class="{ empty: !getVoters(section, card).includes(voter) }"
-                  :style="getVoters(section, card).includes(voter) ? { background: userColors[voter] } : {}"
-                >{{ userShort[voter] }}</div>
+                  v-for="voter in getSortedVoters(section, card)"
+                  :key="voter"
+                  class="vote-avatar"
+                  :class="{ 'is-me': voter === CURRENT_USER }"
+                  :style="{ background: userColors[voter] }"
+                  :title="voter"
+                >{{ voter[0] }}</div>
+                <div
+                  v-for="n in getEmptySlots(section, card)"
+                  :key="'empty-' + n"
+                  class="vote-avatar empty"
+                >?</div>
               </div>
               <div class="vote-count">{{ getVoteCount(section, card) }}票</div>
             </div>
@@ -850,25 +915,36 @@ function getServiceClass(svc) {
   flex: 1;
   min-width: 0;
 }
-.vote-voters { display: flex; align-items: center; }
-.vote-voter {
-  width: 20px;
-  height: 20px;
+.vote-avatars {
+  display: flex;
+  align-items: center;
+}
+.vote-avatar {
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   color: #fff;
-  margin-left: -5px;
+  margin-left: -6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   border: 1.5px solid #fff;
+  transition: all 0.2s;
+  cursor: default;
 }
-.vote-voter:first-child { margin-left: 0; }
-.vote-voter.empty {
+.vote-avatar:first-child { margin-left: 0; }
+.vote-avatar.is-me {
+  border-color: var(--tc-orange);
+  box-shadow: 0 0 0 2px var(--tc-orange);
+  transform: scale(1.1);
+}
+.vote-avatar.empty {
   background: #fff;
   border: 1.5px dashed var(--text-4);
   color: transparent;
+  font-size: 8px;
 }
 .vote-count {
   font-size: 11.5px;
