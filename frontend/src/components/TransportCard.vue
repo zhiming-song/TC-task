@@ -286,8 +286,12 @@ const durationText = computed(() => {
 }
 
 .card-action > span {
+  min-width: 0;
+  overflow: hidden;
   color: #9a9fa8;
   font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .action-buttons {
@@ -338,11 +342,7 @@ const durationText = computed(() => {
 
 @media (max-width: 560px) {
   .card-action {
-    align-items: flex-end;
-  }
-
-  .card-action > span {
-    max-width: 112px;
+    align-items: center;
   }
 }
 </style>
