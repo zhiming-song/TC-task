@@ -179,6 +179,11 @@ def search_transport(args: dict[str, Any]) -> dict[str, Any]:
     for row in inventory_rows:
         unit_cents = int(row["unit_price_cents"])
         remaining = int(row["remaining_inventory"])
+        tags_raw = row.get("tags_json") or "{}"
+        tags_json = json.loads(tags_raw) if isinstance(tags_raw, str) else (tags_raw or {})
+        original_cents = int(tags_json.get("original_price_cents", int(unit_cents * 1.2))) if isinstance(tags_json, dict) else int(unit_cents * 1.2)
+        recommended = tags_json.get("recommended", False) if isinstance(tags_json, dict) else False
+        flight_type = tags_json.get("flight_type", "") if isinstance(tags_json, dict) else ""
         candidates.append(
             {
                 "id": row["product_id"],
@@ -193,7 +198,10 @@ def search_transport(args: dict[str, Any]) -> dict[str, Any]:
                 "inventory_status": "充足" if remaining >= travelers + 5 else "紧张",
                 "estimated_unit_price_yuan": _cents_to_yuan(unit_cents),
                 "estimated_total_yuan": _cents_to_yuan(unit_cents * travelers * 2),
+                "original_price_yuan": _cents_to_yuan(original_cents),
                 "estimated_one_way_duration_minutes": row["duration_minutes"],
+                "recommended": recommended,
+                "flight_type": flight_type,
                 "booking_url": row["booking_url"],
                 "catalog_source": "tongcheng_transport_catalog",
                 "preference_notes": "价格和库存来自同程交通商品库。",
@@ -253,6 +261,10 @@ def search_hotels(args: dict[str, Any]) -> dict[str, Any]:
     for row in inventory_rows[:MAX_TOOL_RESULT_ITEMS]:
         nightly_cents = int(row["room_night_price_cents"])
         remaining_rooms = int(row["remaining_inventory"])
+        tags_raw = row.get("tags_json") or "{}"
+        tags_json = json.loads(tags_raw) if isinstance(tags_raw, str) else (tags_raw or {})
+        tags = tags_json if isinstance(tags_json, dict) else {}
+        original_cents = int(tags.get("original_price_cents", int(nightly_cents * 1.2)))
         hotels.append(
             {
                 "id": row["product_id"],
@@ -260,12 +272,21 @@ def search_hotels(args: dict[str, Any]) -> dict[str, Any]:
                 "location": row["location"],
                 "tier": row["tier"],
                 "estimated_price_per_room_night_yuan": _cents_to_yuan(nightly_cents),
+                "original_price_yuan": _cents_to_yuan(original_cents),
                 "estimated_total_yuan": _cents_to_yuan(nightly_cents * rooms * nights),
                 "rooms": rooms,
                 "nights": nights,
                 "remaining_inventory": remaining_rooms,
                 "inventory_status": "充足" if remaining_rooms >= rooms + 4 else "紧张",
                 "rating": row["rating"],
+                "room_type": tags.get("room_type", ""),
+                "room_size": tags.get("room_size", ""),
+                "bed_type": tags.get("bed_type", ""),
+                "capacity": tags.get("capacity", 2),
+                "distance_km": tags.get("distance_km", 0),
+                "cancel_policy": tags.get("cancel_policy", "入住前可免费取消"),
+                "services": tags.get("services", []),
+                "image_count": tags.get("image_count", 4),
                 "booking_url": row["booking_url"],
                 "catalog_source": "tongcheng_hotel_catalog",
             }

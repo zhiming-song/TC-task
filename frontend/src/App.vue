@@ -10,6 +10,14 @@ const screen = ref('group')
 const importedMessage = ref('')
 const importedCount = ref(0)
 const summarySections = ref([])
+const summaryTripInfo = ref({
+  title: '国庆上海冲冲冲',
+  origin: '北京',
+  destination: '上海',
+  dates: '10.01 - 10.03',
+  travelers: 5,
+  groupName: '国庆上海冲冲冲',
+})
 const showOrderButton = ref(false)
 
 function openAssistant(payload) {
@@ -25,8 +33,11 @@ function backToGroup() {
   showOrderButton.value = false
 }
 
-function openSummary(sections) {
+function openSummary(sections, info) {
   summarySections.value = sections
+  if (info) {
+    summaryTripInfo.value = { ...summaryTripInfo.value, ...info }
+  }
   screen.value = 'summary'
 }
 
@@ -69,7 +80,7 @@ onMounted(async () => {
       后端未检测到 API Key，请在 agent-backend/.env 中配置 DEEPSEEK_API_KEY
     </p>
 
-    <ChatBox v-show="screen === 'assistant'" :initial-message="importedMessage" :show-order-button="showOrderButton" @open-summary="openSummary" />
+    <ChatBox v-show="screen === 'assistant'" :initial-message="importedMessage" :show-order-button="showOrderButton" @open-summary="openSummary" @update-trip-info="(info) => summaryTripInfo = { ...summaryTripInfo, ...info }" />
 
     <header v-if="screen === 'summary'" class="header">
       <button class="back-button" aria-label="返回行程助手" @click="backToAssistant">‹</button>
@@ -79,7 +90,7 @@ onMounted(async () => {
       </div>
     </header>
     <main v-if="screen === 'summary'" class="summary-page">
-      <TripSummary :sections="summarySections" />
+      <TripSummary :sections="summarySections" :trip-info="summaryTripInfo" />
     </main>
   </div>
 </template>

@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<!-- saved from url=(0037)https://76axz9pgry8pm.space.mcode.cn/ -->
+<html lang="zh-CN"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>国庆上海冲冲冲</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link href="./国庆上海冲冲冲_files/css2" rel="stylesheet">
+<style>
+  :root {
+    /* 同程旅行 App 色系 */
+    --tc-orange: #FF6B1A;
+    --tc-orange-dark: #E5570D;
+    --tc-orange-soft: #FFF1E8;
+    --tc-red: #FF4D4F;
+    --tc-red-soft: #FFEDED;
+    --tc-purple: #7B3FF2;
+    --tc-green: #00B576;
+    --tc-green-soft: #E5F8EF;
+
+    /* 5 个群友头像色 */
+    --u-林一: #FF8A1F;
+    --u-Evan: #2E7BE6;
+    --u-小北: #7C5CFC;
+    --u-程程: #00B86C;
+    --u-Dora: #FF5E94;
+
+    --text-1: #1A1A1A;
+    --text-2: #5A5A5A;
+    --text-3: #999999;
+    --text-4: #BFBFBF;
+    --line: #EEEEEE;
+    --line-soft: #F5F5F5;
+    --bg: #F6F6F6;
+    --card: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text-1);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .phone-frame {
+    max-width: 420px;
+    margin: 0 auto;
+    background: var(--bg);
+    min-height: 100vh;
+    padding-bottom: 90px;
+  }
+
+  /* ============ 顶部状态栏 + Logo（模拟App环境） ============ */
+  .status-bar {
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text-1);
+    font-weight: 600;
+  }
+  .status-time { font-size: 15px; font-weight: 700; }
+  .status-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .status-logo {
+    background: var(--tc-orange);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 10px;
+    letter-spacing: 0.3px;
+  }
+
+  /* ============ 标题区 ============ */
+  .header {
+    background: #fff;
+    padding: 12px 16px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .header-title {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text-1);
+    margin: 0 0 4px;
+    line-height: 1.3;
+  }
+  .header-subtitle {
+    font-size: 12.5px;
+    color: var(--text-2);
+    margin: 0;
+  }
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .header-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .header-meta-item svg { color: var(--text-3); }
+
+  /* ============ 群友条 ============ */
+  .people-bar {
+    background: #fff;
+    margin: 8px 12px 0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .people-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .people-avatars { display: flex; align-items: center; }
+  .people-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    color: #fff;
+    margin-left: -6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1.5px solid #fff;
+  }
+  .people-avatar:first-child { margin-left: 0; }
+  .p1 { background: var(--u-林一); }
+  .p2 { background: var(--u-Evan); }
+  .p3 { background: var(--u-小北); }
+  .p4 { background: var(--u-程程); }
+  .p5 { background: var(--u-Dora); }
+  .people-text { font-size: 12px; color: var(--text-2); }
+  .people-text strong { color: var(--text-1); font-weight: 600; }
+
+  /* ============ AI 综合说明（克制版） ============ */
+  .ai-summary {
+    background: #fff;
+    margin: 8px 12px 0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .ai-summary-icon {
+    width: 18px;
+    height: 18px;
+    background: var(--tc-orange);
+    color: #fff;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .ai-summary-text strong { color: var(--text-1); font-weight: 600; }
+
+  /* ============ 模块 ============ */
+  .module {
+    background: #fff;
+    margin: 8px 12px 0;
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .module-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-1);
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .module-title-text {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .module-title-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--tc-orange);
+  }
+  .module-filter {
+    font-size: 12px;
+    color: var(--text-2);
+    font-weight: 400;
+  }
+
+  /* ============ 房型/方案卡片（对齐同程App） ============ */
+  .room {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #fff;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .room:last-child { margin-bottom: 0; }
+  .room.selected {
+    border-color: var(--tc-orange);
+    background: var(--tc-orange-soft);
+  }
+  .room-top {
+    display: flex;
+    gap: 10px;
+  }
+  .room-img {
+    width: 92px;
+    height: 92px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    background: var(--line-soft);
+    position: relative;
+    overflow: hidden;
+  }
+  .room-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .room-img-tag {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+  }
+  .room-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .room-name {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--text-1);
+    margin: 0 0 4px;
+    line-height: 1.3;
+  }
+  .room-spec {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+  .room-cancel {
+    font-size: 11.5px;
+    color: var(--text-2);
+    margin-bottom: 6px;
+  }
+  .room-services {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .room-service {
+    font-size: 10.5px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+  .svc-orange { color: var(--tc-orange); border: 0.5px solid var(--tc-orange); }
+  .svc-green { color: var(--tc-green); border: 0.5px solid var(--tc-green); }
+  .svc-blue { color: #2E7BE6; border: 0.5px solid #2E7BE6; }
+  .svc-gray { color: var(--text-2); border: 0.5px solid var(--text-4); }
+
+  /* ============ 价格区（对齐同程） ============ */
+  .room-bottom {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+  }
+  .room-promo {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .room-promo-tag {
+    font-size: 10px;
+    color: var(--tc-red);
+    border: 0.5px solid var(--tc-red);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .room-price-block {
+    text-align: right;
+  }
+  .room-price {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--tc-red);
+    line-height: 1;
+  }
+  .room-price small {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tc-red);
+  }
+  .room-price-unit {
+    font-size: 11px;
+    color: var(--text-2);
+    margin-top: 2px;
+  }
+  .room-price-original {
+    text-decoration: line-through;
+    color: var(--text-3);
+    font-size: 12px;
+    margin-right: 6px;
+  }
+  .room-price-saved {
+    font-size: 11px;
+    color: var(--tc-red);
+  }
+
+  /* 选中标记 */
+  .selected-tag {
+    position: absolute;
+    top: -8px;
+    left: 12px;
+    background: var(--tc-orange);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 8px 8px 8px 2px;
+  }
+
+  /* ============ 投票条 ============ */
+  .vote-bar {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .vote-left {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+  }
+  .vote-voters { display: flex; align-items: center; }
+  .vote-voter {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    color: #fff;
+    margin-left: -5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    border: 1.5px solid #fff;
+  }
+  .vote-voter:first-child { margin-left: 0; }
+  .vote-voter.empty {
+    background: #fff;
+    border: 1.5px dashed var(--text-4);
+    color: transparent;
+  }
+  .vote-count {
+    font-size: 11.5px;
+    color: var(--text-2);
+    margin-left: 8px;
+  }
+  .vote-count strong {
+    color: var(--tc-orange);
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .vote-btn {
+    padding: 5px 12px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 0.5px solid var(--tc-orange);
+    background: #fff;
+    color: var(--tc-orange);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .vote-btn:active { transform: scale(0.95); }
+  .vote-btn.voted {
+    background: var(--tc-orange);
+    color: #fff;
+  }
+  .vote-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ============ 交通卡片 ============ */
+  .trans {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #fff;
+    position: relative;
+  }
+  .trans:last-child { margin-bottom: 0; }
+  .trans.selected {
+    border-color: var(--tc-orange);
+    background: var(--tc-orange-soft);
+  }
+  .trans-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--tc-orange-soft);
+    color: var(--tc-orange);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .trans.selected .trans-icon {
+    background: var(--tc-orange);
+    color: #fff;
+  }
+  .trans-info { flex: 1; min-width: 0; }
+  .trans-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    margin-bottom: 2px;
+  }
+  .trans-detail {
+    font-size: 11.5px;
+    color: var(--text-2);
+  }
+  .trans-price {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .trans-price-num {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--tc-red);
+    line-height: 1;
+  }
+  .trans-price-num small {
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .trans-price-original {
+    text-decoration: line-through;
+    color: var(--text-3);
+    font-size: 11px;
+  }
+
+  /* ============ 景区门票 ============ */
+  .ticket {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    background: #fff;
+    position: relative;
+  }
+  .ticket-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--tc-orange-soft);
+    color: var(--tc-orange);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ticket-info { flex: 1; min-width: 0; }
+  .ticket-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    margin-bottom: 2px;
+  }
+  .ticket-detail {
+    font-size: 11.5px;
+    color: var(--text-2);
+  }
+  .ticket-price {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .ticket-price-num {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--tc-red);
+    line-height: 1;
+  }
+  .ticket-price-num small {
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .ticket-price-original {
+    text-decoration: line-through;
+    color: var(--text-3);
+    font-size: 11px;
+  }
+
+  /* ============ 底部投票栏 ============ */
+  .action-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 420px;
+    margin: 0 auto;
+    background: #fff;
+    border-top: 1px solid var(--line);
+    padding: 10px 16px 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 10;
+  }
+  .btn-cancel {
+    flex: 1;
+    height: 44px;
+    background: #fff;
+    color: var(--text-2);
+    border: 0.5px solid var(--text-4);
+    border-radius: 22px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .btn-primary {
+    flex: 2;
+    height: 44px;
+    background: var(--tc-orange);
+    color: #fff;
+    border: none;
+    border-radius: 22px;
+    font-size: 14.5px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="phone-frame">
+
+    <!-- 顶部状态栏 -->
+    <div class="status-bar">
+      <div class="status-time">15:57</div>
+      <div class="status-right">
+        <div class="status-logo">同程旅行</div>
+        <span>5G</span>
+        <span>52</span>
+      </div>
+    </div>
+
+    <!-- 标题 -->
+    <div class="header">
+      <h1 class="header-title">国庆上海冲冲冲</h1>
+      <p class="header-subtitle">AI 综合 5 人群聊偏好，给 3 种方案让大家确认</p>
+      <div class="header-meta">
+        <div class="header-meta-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          10.01 - 10.03
+        </div>
+        <div class="header-meta-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+          </svg>
+          5 人出行
+        </div>
+        <div class="header-meta-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          北京 → 上海
+        </div>
+      </div>
+    </div>
+
+    <!-- 群友条 -->
+    <div class="people-bar">
+      <div class="people-left">
+        <div class="people-avatars">
+          <div class="people-avatar p1">林</div>
+          <div class="people-avatar p2">E</div>
+          <div class="people-avatar p3">北</div>
+          <div class="people-avatar p4">程</div>
+          <div class="people-avatar p5">D</div>
+        </div>
+        <span class="people-text">来自 <strong>国庆上海冲冲冲</strong> 群</span>
+      </div>
+      <span class="people-text" style="color:var(--tc-orange);font-weight:600">投票中 3/5</span>
+    </div>
+
+    <!-- AI 综合说明（克制版） -->
+    <div class="ai-summary">
+      <div class="ai-summary-icon">AI</div>
+      <div class="ai-summary-text">
+        已分析聊天记录 · <strong>小北</strong>要迪士尼 · <strong>程程</strong>想外滩 · <strong>Evan</strong>省预算
+      </div>
+    </div>
+
+    <!-- 交通（2个） -->
+    <div class="module">
+      <div class="module-title">
+        <div class="module-title-text">
+          <svg class="module-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path>
+          </svg>
+          交通 · 2个方案
+        </div>
+        <div class="module-filter">综合考虑时间和价格</div>
+      </div>
+
+      <!-- 交通 A · 飞机（AI推荐） -->
+      <div class="trans selected">
+        <div class="selected-tag">AI 推</div>
+        <div class="trans-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path>
+          </svg>
+        </div>
+        <div class="trans-info">
+          <div class="trans-name">南方航空 CZ3104</div>
+          <div class="trans-detail">08:00 - 10:30 · 2h30m 直飞 · 首都 T3 → 浦东 T2</div>
+        </div>
+        <div class="trans-price">
+          <div class="trans-price-num">¥850<small>起</small></div>
+          <div class="trans-price-original">¥1,080</div>
+        </div>
+      </div>
+
+      <!-- 交通 B · 高铁 -->
+      <div class="trans">
+        <div class="trans-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="3" width="16" height="16" rx="2"></rect>
+            <path d="M4 11h16"></path>
+            <path d="M12 3v8"></path>
+            <path d="m8 19-2 3"></path>
+            <path d="m18 22-2-3"></path>
+          </svg>
+        </div>
+        <div class="trans-info">
+          <div class="trans-name">京沪高铁 G1234</div>
+          <div class="trans-detail">07:00 - 11:30 · 4h30m · 北京南 → 上海虹桥</div>
+        </div>
+        <div class="trans-price">
+          <div class="trans-price-num">¥420<small>起</small></div>
+          <div class="trans-price-original">¥553</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 酒店（3个） -->
+    <div class="module">
+      <div class="module-title">
+        <div class="module-title-text">
+          <svg class="module-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 21h18"></path>
+            <path d="M5 21V7l8-4v18"></path>
+            <path d="M19 21V11l-6-4"></path>
+          </svg>
+          酒店 · 3个方案
+        </div>
+        <div class="module-filter">AI 综合偏好给 3 种选择</div>
+      </div>
+
+      <!-- 酒店 A · 体验派（诺阁雅） -->
+      <div class="room" data-hotel="A">
+        <div class="room-top">
+          <div class="room-img">
+            <img src="./国庆上海冲冲冲_files/nuogeya_cropped.jpg" alt="诺阁雅精选酒店">
+            <span class="room-img-tag">4 图</span>
+          </div>
+          <div class="room-info">
+            <h3 class="room-name">诺阁雅精选酒店(上海国际旅游度假区店)</h3>
+            <div class="room-spec">豪华大床房 · 16-18m² · 1.8m大床 · 可入住2人</div>
+            <div class="room-cancel">入住前 24:00 可免费取消</div>
+            <div class="room-services">
+              <span class="room-service svc-orange">立即确认</span>
+              <span class="room-service svc-green">免押金</span>
+            </div>
+          </div>
+        </div>
+        <div class="room-bottom">
+          <div class="room-promo">
+            <span class="room-promo-tag">距迪士尼 1.8km</span>
+            <span class="room-promo-tag">4.9 分</span>
+          </div>
+          <div class="room-price-block">
+            <div>
+              <span class="room-price-original">¥1,580</span>
+              <span class="room-price"><small>¥</small>1,280</span>
+            </div>
+            <div class="room-price-unit">/晚 · 已优惠 ¥300</div>
+          </div>
+        </div>
+        <div class="vote-bar">
+          <div class="vote-left">
+            <div class="vote-voters" data-people="A"><div class="vote-voter" style="background:#7C5CFC">北</div><div class="vote-voter" style="background:#FF5E94">D</div><div class="vote-voter empty">+</div><div class="vote-voter empty">+</div><div class="vote-voter empty">+</div></div>
+            <div class="vote-count"><strong data-count="A">2</strong>人投票</div>
+          </div>
+          <button class="vote-btn" data-target="A">投票</button>
+        </div>
+      </div>
+
+      <!-- 酒店 B · 折中派（万信 · AI推荐） -->
+      <div class="room selected" data-hotel="B">
+        <div class="selected-tag">AI 推</div>
+        <div class="room-top">
+          <div class="room-img">
+            <img src="./国庆上海冲冲冲_files/wanxin_cropped.jpg" alt="万信酒店">
+            <span class="room-img-tag">10 图</span>
+          </div>
+          <div class="room-info">
+            <h3 class="room-name">万信酒店(上海国际旅游度假区店)</h3>
+            <div class="room-spec">高级大床房 · 18-22m² · 1.5m大床 · 可入住2人</div>
+            <div class="room-cancel">9 月 20 日 24:00 前可免费取消</div>
+            <div class="room-services">
+              <span class="room-service svc-orange">立即确认</span>
+              <span class="room-service svc-green">免押金</span>
+              <span class="room-service svc-blue">提前入住</span>
+            </div>
+          </div>
+        </div>
+        <div class="room-bottom">
+          <div class="room-promo">
+            <span class="room-promo-tag">距迪士尼 3.2km</span>
+            <span class="room-promo-tag">4.7 分</span>
+          </div>
+          <div class="room-price-block">
+            <div>
+              <span class="room-price-original">¥1,080</span>
+              <span class="room-price"><small>¥</small>880</span>
+            </div>
+            <div class="room-price-unit">/晚 · 已优惠 ¥200</div>
+          </div>
+        </div>
+        <div class="vote-bar">
+          <div class="vote-left">
+            <div class="vote-voters" data-people="B"><div class="vote-voter" style="background:#FF8A1F">林</div><div class="vote-voter" style="background:#2E7BE6">E</div><div class="vote-voter empty">+</div><div class="vote-voter empty">+</div><div class="vote-voter empty">+</div></div>
+            <div class="vote-count"><strong data-count="B">2</strong>人投票</div>
+          </div>
+          <button class="vote-btn voted" data-target="B">已投</button>
+        </div>
+      </div>
+
+      <!-- 酒店 C · 预算派（唯季） -->
+      <div class="room" data-hotel="C">
+        <div class="room-top">
+          <div class="room-img">
+            <img src="./国庆上海冲冲冲_files/weiji_cropped.jpg" alt="唯季酒店">
+            <span class="room-img-tag">4 图</span>
+          </div>
+          <div class="room-info">
+            <h3 class="room-name">唯季酒店(上海国际旅游度假区店)</h3>
+            <div class="room-spec">标准大床房 · 20-25m² · 1.8m大床 · 可入住2人</div>
+            <div class="room-cancel">入住前 24:00 可免费取消</div>
+            <div class="room-services">
+              <span class="room-service svc-orange">立即确认</span>
+              <span class="room-service svc-green">免押金</span>
+              <span class="room-service svc-gray">含早餐</span>
+            </div>
+          </div>
+        </div>
+        <div class="room-bottom">
+          <div class="room-promo">
+            <span class="room-promo-tag">距迪士尼 4.8km</span>
+            <span class="room-promo-tag">4.5 分</span>
+          </div>
+          <div class="room-price-block">
+            <div>
+              <span class="room-price-original">¥520</span>
+              <span class="room-price"><small>¥</small>420</span>
+            </div>
+            <div class="room-price-unit">/晚 · 已优惠 ¥100</div>
+          </div>
+        </div>
+        <div class="vote-bar">
+          <div class="vote-left">
+            <div class="vote-voters" data-people="C"><div class="vote-voter" style="background:#00B86C">程</div><div class="vote-voter empty">+</div><div class="vote-voter empty">+</div><div class="vote-voter empty">+</div><div class="vote-voter empty">+</div></div>
+            <div class="vote-count"><strong data-count="C">1</strong>人投票</div>
+          </div>
+          <button class="vote-btn" data-target="C">投票</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 景区门票 -->
+    <div class="module">
+      <div class="module-title">
+        <div class="module-title-text">
+          <svg class="module-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 9V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v3a2 2 0 1 0 0 6v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-6z"></path>
+          </svg>
+          景区门票 · 1个方案
+        </div>
+        <div class="module-filter">已选最低价</div>
+      </div>
+
+      <div class="ticket">
+        <div class="ticket-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 9V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v3a2 2 0 1 0 0 6v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-6z"></path>
+          </svg>
+        </div>
+        <div class="ticket-info">
+          <div class="ticket-name">上海迪士尼乐园 · 一日票</div>
+          <div class="ticket-detail">成人票 · 同程会员价 · 出票即用</div>
+        </div>
+        <div class="ticket-price">
+          <div class="ticket-price-num">¥575<small>起</small></div>
+          <div class="ticket-price-original">¥599</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部操作栏 -->
+    <div class="action-bar">
+      <button class="btn-cancel">稍后决定</button>
+      <button class="btn-primary">投票确认</button>
+    </div>
+
+  </div>
+
+  <script>
+    (function() {
+      const TOTAL_VOTERS = 5;
+      const state = {
+        A: { count: 2, voters: ['小北', 'Dora'] },
+        B: { count: 2, voters: ['林一', 'Evan'] },
+        C: { count: 1, voters: ['程程'] }
+      };
+      let meVote = 'B';
+      const userColors = { '林一': '#FF8A1F', 'Evan': '#2E7BE6', '小北': '#7C5CFC', '程程': '#00B86C', 'Dora': '#FF5E94' };
+      const userShort = { '林一': '林', 'Evan': 'E', '小北': '北', '程程': '程', 'Dora': 'D' };
+
+      function renderPeople() {
+        for (const k in state) {
+          const wrap = document.querySelector(`[data-people="${k}"]`);
+          if (!wrap) continue;
+          let html = '';
+          for (let i = 0; i < TOTAL_VOTERS; i++) {
+            const v = state[k].voters[i];
+            if (v) {
+              html += `<div class="vote-voter" style="background:${userColors[v]}">${userShort[v]}</div>`;
+            } else {
+              html += `<div class="vote-voter empty">+</div>`;
+            }
+          }
+          wrap.innerHTML = html;
+        }
+      }
+
+      function render() {
+        for (const k in state) {
+          const countEl = document.querySelector(`[data-count="${k}"]`);
+          const btn = document.querySelector(`.vote-btn[data-target="${k}"]`);
+          if (countEl) countEl.textContent = state[k].count;
+          if (btn) {
+            if (k === meVote) {
+              btn.classList.add('voted');
+              btn.textContent = '已投';
+            } else {
+              btn.classList.remove('voted');
+              btn.textContent = '投票';
+            }
+          }
+        }
+        renderPeople();
+      }
+
+      document.querySelectorAll('.vote-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const target = this.getAttribute('data-target');
+          if (meVote !== null) return;
+          if (state.A.count + state.B.count + state.C.count >= TOTAL_VOTERS) return;
+          state[target].voters.push('林一');
+          state[target].count++;
+          meVote = target;
+          render();
+        });
+      });
+
+      render();
+    })();
+  </script>
+
+<script data-minimax-analytics="minimax-website-analytics-v1">(function(){
+"use strict";
+var t="eyJ2IjoxLCJraWQiOiJwcmUtY24tMjAyNjA4MTUtdjEiLCJiaXpfaWQiOiJNYXZpcyIsIm5vZGVfaWQiOiI0MzUzODEwMDA2ODQ1MzciLCJpc3N1ZWRfYXQiOjE3ODc4NDc0MzIzMTZ9.hKhHXtN3o9i2QVgwv9kpfdn_T5ItVAE92kvNiRt-PX8",u="https://agent.minimax.cn/minimax-cloud/api/v1/website-traffic/page-views",last="";
+function path(){
+var h=window.location.hash||"",p=h.indexOf("#!")===0?h.slice(2):h.indexOf("#/")===0?h.slice(1):(window.location.pathname||"/");
+p=p.split(/[?#]/,1)[0]||"/";
+if(p.charAt(0)!=="/")p="/"+p;
+p=p.replace(/\/+/g,"/").replace(/%([0-9a-fA-F]{2})/g,function(_,x){var c=String.fromCharCode(parseInt(x,16));return /[A-Za-z0-9._~-]/.test(c)?c:"%"+x.toUpperCase();});
+if(p.length>1)p=p.replace(/\/+$/,"");
+return p||"/";
+}
+function send(){
+var p=path();if(p===last)return;last=p;
+var b="v=1&t="+encodeURIComponent(t)+"&p="+encodeURIComponent(p),ok=false;
+try{if(navigator.sendBeacon){ok=navigator.sendBeacon(u,new Blob([b],{type:"application/x-www-form-urlencoded;charset=UTF-8"}));}}catch(e){}
+if(!ok){try{fetch(u,{method:"POST",body:b,keepalive:true,mode:"no-cors",credentials:"omit",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"}});}catch(e){}}
+}
+["pushState","replaceState"].forEach(function(n){var f=history[n];if(!f)return;history[n]=function(){var r=f.apply(this,arguments);setTimeout(send,0);return r;};});
+window.addEventListener("popstate",send);window.addEventListener("hashchange",send);send();
+})();</script>
+<style>
+#minimax-floating-ball {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 12px;
+  background: #222222;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  color: #F8F8F8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  z-index: 9999;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+#minimax-floating-ball:hover {
+  transform: translateY(-2px);
+  background: #383838;
+}
+.minimax-ball-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.minimax-logo-wave {
+  width: 20px;
+  height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg%20preserveAspectRatio%3D%27none%27%20width%3D%27100%25%27%20height%3D%27100%25%27%20overflow%3D%27visible%27%20style%3D%27display%3A%20block%3B%27%20viewBox%3D%270%200%20170.136%20138.225%27%20fill%3D%27none%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cg%20id%3D%27Frame%202116748449%27%3E%3Cpath%20id%3D%27Subtract%27%20d%3D%27M170%20101.783C170%20105.144%20168.49%20108.327%20165.886%20110.453L134.963%20135.702C132.964%20137.334%20130.463%20138.225%20127.883%20138.225H10.4938C4.69824%20138.225%200%20133.527%200%20127.732V39.2289C0%2035.8597%201.51758%2032.6698%204.13162%2030.5442L38.5402%202.56547C40.536%200.942662%2043.0298%200.0567377%2045.602%200.0567377H159.506C165.302%200.0567377%20170%204.75498%20170%2010.5506V101.783Z%27%20fill%3D%27black%27%20style%3D%27fill%3Ablack%3Bfill-opacity%3A1%3B%27/%3E%3Cpath%20id%3D%27Subtract_2%27%20d%3D%27M149.011%2094.4632C149.011%2096.1471%20148.253%2097.7415%20146.946%2098.8043L125.893%20115.936C124.895%20116.748%20123.648%20117.191%20122.361%20117.191H24.6479C22.716%20117.191%2021.15%20115.625%2021.15%20113.693V46.1166C21.15%2044.4267%2021.9135%2042.8274%2023.2274%2041.7648L47.367%2022.2437C48.3638%2021.4376%2049.607%2020.9982%2050.8888%2020.9988L145.514%2021.0427C147.446%2021.0436%20149.011%2022.6094%20149.011%2024.5406V94.4632Z%27%20fill%3D%27white%27%20style%3D%27fill%3Awhite%3Bfill-opacity%3A1%3B%27/%3E%3Cpath%20id%3D%27Rectangle%20111142564%27%20d%3D%27M42.111%2080.8025C42.111%2077.7115%2044.6167%2075.2057%2047.7077%2075.2057H60.9999C64.0908%2075.2057%2066.5966%2077.7115%2066.5966%2080.8025V121.029H42.111V80.8025Z%27%20fill%3D%27black%27%20style%3D%27fill%3Ablack%3Bfill-opacity%3A1%3B%27/%3E%3Cpath%20id%3D%27Rectangle%20111142567%27%20d%3D%27M79.1894%2080.8025C79.1894%2077.7115%2081.6952%2075.2057%2084.7861%2075.2057H98.0783C101.169%2075.2057%20103.675%2077.7115%20103.675%2080.8025V121.029H79.1894V80.8025Z%27%20fill%3D%27black%27%20style%3D%27fill%3Ablack%3Bfill-opacity%3A1%3B%27/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 11px;
+  background-color: #8FD1FF;
+  border-radius: 4px;
+}
+
+.minimax-ball-text {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.minimax-close-icon {
+  margin-left: 8px;
+  font-size: 16px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.minimax-close-icon:hover {
+  opacity: 1;
+}
+</style>
+<div id="minimax-floating-ball" style="opacity: 1; transform: translateY(0px);">
+  <div class="minimax-ball-content">
+    <div class="minimax-logo-wave"></div>
+    <span class="minimax-ball-text">Created by MiniMax Agent</span>
+  </div>
+  <div class="minimax-close-icon">×</div>
+</div>
+<script>
+// Initialize floating ball functionality
+function initFloatingBall() {
+  const ball = document.getElementById('minimax-floating-ball');
+  if (!ball) return;
+
+  // Initial animation
+  ball.style.opacity = '0';
+  ball.style.transform = 'translateY(20px)';
+
+  setTimeout(() => {
+    ball.style.opacity = '1';
+    ball.style.transform = 'translateY(0)';
+  }, 500);
+
+  // Handle logo click
+  const ballContent = ball.querySelector('.minimax-ball-content');
+  ballContent.addEventListener('click', function (e) {
+    e.stopPropagation();
+    window.open('https://agent.minimax.cn/', '_blank');
+    ball.style.transform = 'scale(0.95)';
+    setTimeout(() => {
+      ball.style.transform = 'scale(1)';
+    }, 100);
+  });
+
+  // Handle close button click
+  const closeIcon = ball.querySelector('.minimax-close-icon');
+  closeIcon.addEventListener('click', function (e) {
+    e.stopPropagation();
+    ball.style.opacity = '0';
+    ball.style.transform = 'translateY(20px)';
+
+    setTimeout(() => {
+      ball.style.display = 'none';
+    }, 300);
+  });
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', initFloatingBall); 
+</script>
+
+
+</body></html>

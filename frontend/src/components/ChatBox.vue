@@ -15,7 +15,7 @@ const props = defineProps({
     default: false,
   },
 })
-const emit = defineEmits(['open-summary'])
+const emit = defineEmits(['open-summary', 'update-trip-info'])
 
 const messages = ref([])
 const input = ref('')
@@ -29,6 +29,14 @@ const confirmedTicketIds = ref([])
 const summaryVisible = ref(false)
 const summaryLinkVisible = ref(false)
 const summaryDraft = ref({ transport: '', hotel: '', ticket: [] })
+const tripInfo = ref({
+  title: '国庆上海冲冲冲',
+  origin: '北京',
+  destination: '上海',
+  dates: '10.01 - 10.03',
+  travelers: 5,
+  groupName: '国庆上海冲冲冲',
+})
 const starters = [
   '我想规划一次多人旅行',
   '帮我整理这段群聊里的出行需求',
@@ -219,21 +227,28 @@ const summarySections = computed(() => [
     key: 'transport',
     title: '交通',
     cards: allCardsByType('transport_offer'),
-    selectedIds: confirmedTransportId.value ? [confirmedTransportId.value] : (summaryDraft.value.transport ? [summaryDraft.value.transport] : []),
+    // 锁定时用确认数据，未锁定时用草稿投票数据
+    selectedIds: confirmedTransportId.value
+      ? [confirmedTransportId.value]
+      : (summaryDraft.value.transport ? [summaryDraft.value.transport] : []),
     locked: Boolean(confirmedTransportId.value),
   },
   {
     key: 'hotel',
     title: '酒店',
     cards: allCardsByType('hotel_offer'),
-    selectedIds: confirmedHotelId.value ? [confirmedHotelId.value] : (summaryDraft.value.hotel ? [summaryDraft.value.hotel] : []),
+    selectedIds: confirmedHotelId.value
+      ? [confirmedHotelId.value]
+      : (summaryDraft.value.hotel ? [summaryDraft.value.hotel] : []),
     locked: Boolean(confirmedHotelId.value),
   },
   {
     key: 'ticket',
     title: '景点门票',
     cards: allCardsByType('ticket_offer'),
-    selectedIds: confirmedTicketIds.value.length ? confirmedTicketIds.value : summaryDraft.value.ticket,
+    selectedIds: confirmedTicketIds.value.length
+      ? confirmedTicketIds.value
+      : summaryDraft.value.ticket,
     locked: confirmedTicketIds.value.length > 0,
   },
 ])
@@ -241,6 +256,13 @@ const summarySections = computed(() => [
 function handleSummarySelect({ sectionKey, cardId }) {
   const section = summarySections.value.find((item) => item.key === sectionKey)
   if (!section || section.locked) return
+  
+  // cardId 为 null 表示取消投票
+  if (cardId === null) {
+    summaryDraft.value[sectionKey] = ''
+    return
+  }
+  
   if (sectionKey === 'ticket') {
     summaryDraft.value.ticket = summaryDraft.value.ticket.includes(cardId)
       ? summaryDraft.value.ticket.filter((id) => id !== cardId)
@@ -370,7 +392,26 @@ async function continueWithTicket(msg) {
 }
 
 function openSummaryFromLink() {
-  emit('open-summary', summarySections.value)
+  extractTripInfo()
+  emit('open-summary', summarySections.value, tripInfo.value)
+}
+
+function extractTripInfo() {
+  // 从已选交通卡片提取行程基本信息
+  const transportCard = allCardsByType('transport_offer').find(c => c.id === confirmedTransportId.value)
+  if (transportCard) {
+    tripInfo.value.origin = transportCard.origin || '北京'
+    tripInfo.value.destination = transportCard.destination || '上海'
+    tripInfo.value.travelers = transportCard.travelers || 5
+  }
+  // 从 AI 回复中提取日期
+  const allText = messages.value.map(m => m.content || '').join('\n')
+  const dateMatch = allText.match(/(\d{1,2})[月.\-](\d{1,2})/g)
+  if (dateMatch && dateMatch.length >= 2) {
+    tripInfo.value.dates = dateMatch[0].replace(/月/, '.').replace(/日/, '') + ' - ' + dateMatch[1].replace(/月/, '.').replace(/日/, '')
+  }
+  // 更新标题
+  tripInfo.value.title = `${tripInfo.value.destination}行程规划`
 }
 
 function appendSummaryLink() {

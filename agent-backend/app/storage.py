@@ -249,24 +249,30 @@ class TravelRepository:
                     continue
                 route_score = (origin_index + 3) * 37 + (destination_index + 5) * 53
                 specs = (
-                    ("train", "A", "07:30", 170 + route_score % 260, 22000 + route_score % 36000, "二等座", 8),
-                    ("train", "B", "13:20", 195 + route_score % 280, 26000 + route_score % 39000, "二等座", 14),
-                    ("flight", "A", "09:10", 95 + route_score % 95, 43000 + route_score % 65000, "经济舱", 9),
-                    ("flight", "B", "18:40", 110 + route_score % 105, 51000 + route_score % 72000, "经济舱", 15),
+                    ("train", "A", "07:30", 170 + route_score % 260, 22000 + route_score % 36000, 26000, "二等座", 8, "直达", False),
+                    ("train", "B", "13:20", 195 + route_score % 280, 26000 + route_score % 39000, 31000, "二等座", 14, "直达", False),
+                    ("flight", "A", "09:10", 95 + route_score % 95, 43000 + route_score % 65000, 52000, "经济舱", 9, "直飞", True),
+                    ("flight", "B", "18:40", 110 + route_score % 105, 51000 + route_score % 72000, 61000, "经济舱", 15, "直飞", False),
                 )
-                for transport_type, suffix, departure_time, duration, price, seat_class, inventory in specs:
+                for (transport_type, suffix, departure_time, duration, price, original_price, seat_class, inventory, flight_type, recommended) in specs:
                     arrival_time = (
                         datetime.strptime(departure_time, "%H:%M") + timedelta(minutes=duration)
                     ).strftime("%H:%M")
                     product_id = f"tc_{origin}_{destination}_{transport_type}_{suffix}".lower()
+                    if transport_type == "train":
+                        company = f"{origin[:2]}路局 {suffix}次"
+                        name = f"{origin}→{destination} 高铁 {suffix}"
+                    else:
+                        company = f"{origin[:2]}航空 {suffix}次"
+                        name = f"{origin[:2]}航空 CZ{route_score % 9000 + 1000}"
                     transport_rows.append(
                         (
                             product_id,
                             origin,
                             destination,
                             transport_type,
-                            f"{origin}到{destination}{'高铁' if transport_type == 'train' else '航班'}方案{suffix}",
-                            f"{'高铁' if transport_type == 'train' else '航班'}班次 {suffix}",
+                            name,
+                            f"{company}",
                             departure_time,
                             arrival_time,
                             duration,
@@ -274,7 +280,7 @@ class TravelRepository:
                             price,
                             inventory + route_score % 6,
                             settings.tongcheng_train_booking_url if transport_type == "train" else settings.tongcheng_flight_booking_url,
-                            _json(["同程精选", "可比较", "库存候选"]),
+                            _json({"tags": ["同程精选", "可比较", "库存候选"], "original_price_cents": original_price, "recommended": recommended, "flight_type": flight_type}),
                             timestamp,
                         )
                     )
@@ -291,24 +297,52 @@ class TravelRepository:
 
         hotel_rows = []
         ticket_rows = []
-        tiers = (("economic", "经济型", 28000), ("balanced", "舒适型", 52000), ("comfort", "品质型", 86000))
+        tiers = (
+            ("economic", "经济型", 28000, "标准间", "15-18m²", "1.2m双床", 2),
+            ("balanced", "舒适型", 52000, "高级大床房", "18-22m²", "1.5m大床", 2),
+            ("comfort", "品质型", 86000, "豪华套房", "25-30m²", "1.8m大床", 2),
+        )
+        # 上海迪士尼区域酒店（特殊图片）
+        disney_hotels = {
+            "economic": ("唯季酒店", "tc_shanghai_disney_economic", 42000, 4.5, "经济型", "标准大床房", "20-25m²", "1.8m大床", 2),
+            "balanced": ("万信酒店", "tc_shanghai_disney_balanced", 88000, 4.7, "舒适型", "高级大床房", "18-22m²", "1.5m大床", 2),
+            "comfort": ("诺阁雅精选酒店", "tc_shanghai_disney_comfort", 128000, 4.9, "品质型", "豪华大床房", "16-18m²", "1.8m大床", 2),
+        }
         for city_index, (city, (areas, attractions)) in enumerate(cities.items()):
             for area_index, area in enumerate(areas):
-                for tier_index, (tier, tier_name, base_price) in enumerate(tiers):
+                for tier_index, (tier, tier_name, base_price, room_type, room_size, bed_type, capacity) in enumerate(tiers):
                     product_id = f"tc_hotel_{city}_{area}_{tier}".lower()
                     price = base_price + ((city_index + 1) * 41 + area_index * 67 + tier_index * 29) % 12000
+                    original_price = int(price * 1.25)
+                    # 迪士尼区域有特殊数据
+                    if city == "上海" and area == "迪士尼":
+                        if tier in disney_hotels:
+                            pname, product_id, price, rating, tier_name, room_type, room_size, bed_type, capacity = disney_hotels[tier]
+                            original_price = int(price * 1.25)
+                    distance_km = 1.5 + (area_index * 1.2 + tier_index * 0.5)
                     hotel_rows.append(
                         (
                             product_id,
                             city,
-                            f"{city}{area}{tier_name}酒店",
+                            f"{city}{area}{tier_name}酒店" if city != "上海" or area != "迪士尼" or tier not in disney_hotels else product_id.split("_")[-2] if False else pname,
                             area,
                             tier,
                             f"{4.3 + ((city_index + area_index + tier_index) % 6) / 10:.1f}",
                             price,
                             5 + (city_index * 3 + area_index * 2 + tier_index) % 12,
                             settings.tongcheng_hotel_booking_url,
-                            _json([area, tier_name, "同程精选"]),
+                            _json({
+                                "tags": [area, tier_name, "同程精选"],
+                                "original_price_cents": original_price,
+                                "room_type": room_type,
+                                "room_size": room_size,
+                                "bed_type": bed_type,
+                                "capacity": capacity,
+                                "distance_km": distance_km,
+                                "cancel_policy": "入住前24:00可免费取消",
+                                "services": ["立即确认", "免押金"] + (["含早餐"] if tier == "economic" else []),
+                                "image_count": 4 + tier_index * 3,
+                            }),
                             timestamp,
                         )
                     )
