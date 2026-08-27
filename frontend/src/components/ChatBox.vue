@@ -69,11 +69,24 @@ async function scrollToBottom() {
   if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight
 }
 
+/**
+ * 提取可展示的请求失败信息。
+ *
+ * @param {unknown} error 请求过程抛出的异常。
+ * @return {string} 可直接展示给用户的错误信息。
+ */
+function getErrorMessage(error) {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error.trim()) return error
+  return '请求失败，请检查网络连接后重试。'
+}
+
 async function send(contextContent = '') {
   const text = input.value.trim()
   if (!text || loading.value) return
 
-  messages.value.push({ role: 'user', content: text, apiContent: contextContent || text })
+  const normalizedContext = typeof contextContent === 'string' ? contextContent : ''
+  messages.value.push({ role: 'user', content: text, apiContent: normalizedContext || text })
   input.value = ''
   loading.value = true
 
@@ -108,9 +121,10 @@ async function send(contextContent = '') {
     }
     return true
   } catch (err) {
-    messages.value[index].content = err.message.includes('Content Exists Risk')
+    const errorMessage = getErrorMessage(err)
+    messages.value[index].content = errorMessage.includes('Content Exists Risk')
       ? '本次请求未通过服务安全校验，请重试或换一种表述。'
-      : `出错了：${err.message}`
+      : `出错了：${errorMessage}`
     return false
   } finally {
     loading.value = false
@@ -348,7 +362,7 @@ onMounted(async () => {
         :disabled="loading"
         @keydown="onKeydown"
       ></textarea>
-      <button class="primary send-button" :disabled="loading || !input.trim()" @click="send">
+      <button class="primary send-button" :disabled="loading || !input.trim()" @click="send()">
         {{ loading ? '生成中' : '发送' }}
       </button>
     </div>

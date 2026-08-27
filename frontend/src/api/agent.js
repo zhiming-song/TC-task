@@ -1,9 +1,36 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
+/**
+ * 将接口返回的错误对象转换为可展示的文本。
+ *
+ * @param {unknown} detail 接口返回的错误详情。
+ * @return {string} 适合直接展示给用户的错误信息。
+ */
+function formatErrorDetail(detail) {
+  if (typeof detail === 'string' && detail.trim()) return detail
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (!item || typeof item !== 'object') return ''
+        const field = Array.isArray(item.loc)
+          ? item.loc.filter((part) => part !== 'body').join('.')
+          : ''
+        return field ? `${field}：${item.msg || '参数不合法'}` : item.msg || '请求参数不合法'
+      })
+      .filter(Boolean)
+    if (messages.length) return messages.join('；')
+  }
+  if (detail && typeof detail === 'object' && typeof detail.message === 'string') {
+    return detail.message
+  }
+  return '请求参数不合法，请检查后重试。'
+}
+
 async function parseError(res) {
   try {
     const data = await res.json()
-    return data.detail || `请求失败(${res.status})`
+    return data.detail ? formatErrorDetail(data.detail) : `请求失败(${res.status})`
   } catch {
     return `请求失败(${res.status})`
   }
