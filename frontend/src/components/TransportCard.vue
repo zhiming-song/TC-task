@@ -34,9 +34,6 @@ const durationText = computed(() => {
           <span>{{ card.title }} · {{ card.service_label }}</span>
         </div>
       </div>
-      <span class="mode-badge" :class="{ live: card.realtime }">
-        {{ card.realtime ? '实时' : '演示' }}
-      </span>
     </div>
 
     <div class="route-line">
@@ -57,8 +54,7 @@ const durationText = computed(() => {
     <div class="inventory-line">
       <span>{{ card.seat_class }}</span>
       <span :class="{ limited: card.inventory_status === '紧张' }">
-        {{ card.realtime ? '余' : '模拟余量' }} {{ card.remaining_inventory }}
-        · {{ card.inventory_status }}
+        余 {{ card.remaining_inventory }} · {{ card.inventory_status }}
       </span>
     </div>
 

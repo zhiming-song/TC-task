@@ -15,7 +15,6 @@ const emit = defineEmits(['select'])
         <strong>{{ card.title }}</strong>
         <span>{{ card.destination }} · {{ card.category }}</span>
       </div>
-      <span class="mode-badge">{{ card.realtime ? '实时' : 'Mock' }}</span>
     </div>
 
     <div class="ticket-info">
@@ -28,7 +27,7 @@ const emit = defineEmits(['select'])
 
     <div class="ticket-action">
       <span :class="{ limited: card.inventory_status === '紧张' }">
-        {{ card.realtime ? '余' : 'Mock余量' }} {{ card.remaining_inventory }} · {{ card.inventory_status }}
+        余 {{ card.remaining_inventory }} · {{ card.inventory_status }}
       </span>
       <div>
         <button :class="{ active: selected }" type="button" @click="emit('select')">

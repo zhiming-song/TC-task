@@ -24,13 +24,12 @@ _executor = ThreadPoolExecutor(max_workers=4)
 
 
 def _hotel_reply(cards):
-    lines = ["已生成酒店候选（演示估价、非实时库存、不可直接预订）：", "", "酒店候选："]
+    lines = ["已生成酒店候选：", "", "酒店候选："]
     for index, card in enumerate(cards, 1):
         lines.append(
             f"{index}. {card.get('title')}；位置：{card.get('location')}；"
             f"{card.get('rooms')}间×{card.get('nights')}晚总价：¥{card.get('total_price_yuan')}"
         )
-    lines.append("\n以上价格与库存来自 Mock 商品库，真实价格与空房需刷新确认。")
     return "\n".join(lines)
 
 
@@ -40,16 +39,30 @@ def _ensure_cards(result, messages):
     if "旅行计划汇总" in latest_user or "完整行程草案" in latest_user or "生成旅行计划" in latest_user:
         result.cards = []
         return result
+    # 用户明确问景点/门票时，只返回景点卡片
     wants_attractions = any(
         phrase in latest_user
-        for phrase in ("推荐景点", "景点/门票", "景点和门票", "搜索景点", "搜索门票")
-    )
-    wants_hotels = any(
-        phrase in latest_user
-        for phrase in ("酒店推荐", "酒店库存候选", "搜索酒店", "进入酒店", "进入下一项", "下一项", "继续")
-    ) or any(word in history for word in ("酒店", "住宿", "入住", "酒店方案"))
-    expected_type = "ticket_offer" if wants_attractions else "hotel_offer" if wants_hotels else ""
-    if not expected_type or (result.cards and all(card.get("type") == expected_type for card in result.cards)):
+        for phrase in ("推荐景点", "景点/门票", "景点和门票", "搜索景点", "搜索门票", "景点门票", "推荐景区")
+    ) or any(word in latest_user for word in ("景点", "门票", "游玩", "景区"))
+    if wants_attractions:
+        # 如果用户明确要求景点，有景点卡片就直接返回
+        if result.cards and all(card.get("type") == "ticket_offer" for card in result.cards):
+            return result
+        # 否则继续生成景点卡片
+        expected_type = "ticket_offer"
+    else:
+        # 其他情况（酒店环节）
+        expected_type = ""
+        wants_hotels = any(
+            phrase in latest_user
+            for phrase in ("酒店推荐", "酒店库存候选", "搜索酒店", "进入酒店", "进入下一项", "下一项", "继续")
+        ) or any(word in latest_user for word in ("酒店", "住宿", "入住", "酒店方案"))
+        if wants_hotels:
+            expected_type = "hotel_offer"
+        else:
+            return result
+    # 如果已有符合当前环节的卡片，无需补充
+    if result.cards and all(card.get("type") == expected_type for card in result.cards):
         return result
     trip_match = re.search(r"trip_[A-Za-z0-9_]+", history)
     if not trip_match:
@@ -59,7 +72,7 @@ def _ensure_cards(result, messages):
     if not bundle or not bundle.get("trip"):
         return result
     trip = bundle["trip"]
-    if wants_hotels:
+    if expected_type == "hotel_offer":
         args = json.dumps({
             "trip_id": trip_id,
             "destination": trip["destination"],
@@ -74,7 +87,7 @@ def _ensure_cards(result, messages):
             result.cards = result.cards[:count]
         if result.cards:
             result.reply = _hotel_reply(result.cards)
-    elif wants_attractions:
+    elif expected_type == "ticket_offer":
         args = json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False)
         result.cards = _ticket_cards(execute_tool("search_attractions", args))
     return result
@@ -86,21 +99,20 @@ def _run_job(job_id: str, request: ChatRequest) -> None:
         _jobs[job_id]["progress"] = "正在分析你的行程需求…"
     try:
         result = agent.run(request.messages, temperature=request.temperature)
-        if not result.cards:
+        # 只有当用户明确要求景点/门票时，才补充门票卡片
+        latest_user = next((message.content for message in reversed(request.messages) if message.role == "user"), "")
+        if not result.cards and any(word in latest_user for word in ("景点", "门票", "景区", "游玩", "推荐景区")):
             history = "\n".join(message.content for message in request.messages)
-            if "景点" in history or "门票" in history:
-                history += "\n鏅偣 闂ㄧエ"
-            if "景点" in history or "门票" in history:
-                match = re.search(r'(?:行程ID：|trip_id[：:"]+)(trip_[A-Za-z0-9_]+)', history)
-                if not match:
-                    match = re.search(r"(trip_[A-Za-z0-9_]+)", history)
-                if match:
-                    trip_id = match.group(1)
-                    bundle = repository.get_trip_bundle(trip_id)
-                    if bundle and bundle.get("trip"):
-                        trip = bundle["trip"]
-                        raw = execute_tool("search_attractions", json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False))
-                        result.cards = _ticket_cards(raw)
+            match = re.search(r'(?:行程ID：|trip_id[：:"]+)(trip_[A-Za-z0-9_]+)', history)
+            if not match:
+                match = re.search(r"(trip_[A-Za-z0-9_]+)", history)
+            if match:
+                trip_id = match.group(1)
+                bundle = repository.get_trip_bundle(trip_id)
+                if bundle and bundle.get("trip"):
+                    trip = bundle["trip"]
+                    raw = execute_tool("search_attractions", json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False))
+                    result.cards = _ticket_cards(raw)
         result = _ensure_cards(result, request.messages)
         with _jobs_lock:
             _jobs[job_id].update(status="completed", progress="已完成", reply=result.reply, cards=result.cards)

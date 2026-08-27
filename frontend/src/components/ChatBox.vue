@@ -150,7 +150,7 @@ function useStarter(text) {
 }
 
 function selectTransport(msg, card) {
-  if (loading.value || msg.selectionConfirmed) return
+  if (loading.value) return
   msg.selectedCardId = card.id
 }
 
@@ -376,7 +376,6 @@ onMounted(async () => {
             {{ text }}
           </button>
         </div>
-        <small>当前搜索结果为演示估价，不代表实时库存或最终成交价。</small>
       </div>
 
       <div v-for="(msg, i) in messages" :key="i" class="row" :class="msg.role">

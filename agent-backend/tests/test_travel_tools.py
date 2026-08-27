@@ -219,8 +219,8 @@ class TravelToolsTest(unittest.TestCase):
         self.assertEqual(cards[0]["attraction_name"], "上海迪士尼乐园")
         self.assertTrue(all(card["booking_url"] == "https://www.ly.com/scenery/" for card in cards))
 
-    def test_mock_catalog_has_multi_city_products(self):
-        stats = self.repository.mock_catalog_stats()
+    def test_product_catalog_has_multi_city_products(self):
+        stats = self.repository.product_catalog_stats()
         self.assertEqual(stats["cities"], 12)
         self.assertEqual(stats["transport_products"], 528)
         self.assertEqual(stats["hotel_products"], 108)

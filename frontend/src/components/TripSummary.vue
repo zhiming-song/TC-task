@@ -34,7 +34,6 @@ function cardPrice(card) {
 }
 
 function selectItem(section, card) {
-  if (section.locked) return
   const current = selected.value[section.key] || []
   selected.value[section.key] = section.key === 'ticket'
     ? (current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id])
@@ -60,9 +59,8 @@ function selectedIds(section) {
           v-for="card in section.cards"
           :key="card.id"
           class="summary-option"
-          :class="{ selected: selectedIds(section).includes(card.id), locked: section.locked }"
+          :class="{ selected: selectedIds(section).includes(card.id) }"
           type="button"
-          :disabled="section.locked"
           @click="selectItem(section, card)"
         >
           <span class="option-radio" :class="{ checked: selectedIds(section).includes(card.id) }" aria-hidden="true"></span>

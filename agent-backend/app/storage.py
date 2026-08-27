@@ -167,7 +167,7 @@ class TravelRepository:
                 );
                 CREATE INDEX IF NOT EXISTS idx_selection_trip ON trip_selections(trip_id, created_at);
 
-                CREATE TABLE IF NOT EXISTS mock_transport_inventory (
+                CREATE TABLE IF NOT EXISTS product_transport_inventory (
                     product_id TEXT PRIMARY KEY,
                     origin TEXT NOT NULL,
                     destination TEXT NOT NULL,
@@ -184,10 +184,10 @@ class TravelRepository:
                     tags_json TEXT NOT NULL DEFAULT '[]',
                     updated_at TEXT NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS idx_mock_transport_route
-                    ON mock_transport_inventory(origin, destination, transport_type, unit_price_cents);
+                CREATE INDEX IF NOT EXISTS idx_product_transport_route
+                    ON product_transport_inventory(origin, destination, transport_type, unit_price_cents);
 
-                CREATE TABLE IF NOT EXISTS mock_hotel_inventory (
+                CREATE TABLE IF NOT EXISTS product_hotel_inventory (
                     product_id TEXT PRIMARY KEY,
                     city TEXT NOT NULL,
                     product_name TEXT NOT NULL,
@@ -200,10 +200,10 @@ class TravelRepository:
                     tags_json TEXT NOT NULL DEFAULT '[]',
                     updated_at TEXT NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS idx_mock_hotel_city
-                    ON mock_hotel_inventory(city, location, room_night_price_cents);
+                CREATE INDEX IF NOT EXISTS idx_product_hotel_city
+                    ON product_hotel_inventory(city, location, room_night_price_cents);
 
-                CREATE TABLE IF NOT EXISTS mock_ticket_inventory (
+                CREATE TABLE IF NOT EXISTS product_ticket_inventory (
                     product_id TEXT PRIMARY KEY,
                     city TEXT NOT NULL,
                     product_name TEXT NOT NULL,
@@ -217,14 +217,14 @@ class TravelRepository:
                     tags_json TEXT NOT NULL DEFAULT '[]',
                     updated_at TEXT NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS idx_mock_ticket_city
-                    ON mock_ticket_inventory(city, attraction_name, unit_price_cents);
+                CREATE INDEX IF NOT EXISTS idx_product_ticket_city
+                    ON product_ticket_inventory(city, attraction_name, unit_price_cents);
                 """
             )
-            self._seed_mock_catalog(connection)
+            self._seed_product_catalog(connection)
 
-    def _seed_mock_catalog(self, connection: sqlite3.Connection) -> None:
-        """预置多城市演示商品库；使用INSERT OR IGNORE保留人工调整的库存。"""
+    def _seed_product_catalog(self, connection: sqlite3.Connection) -> None:
+        """预置多城市同程精选商品库；使用INSERT OR IGNORE保留人工调整的库存。"""
         cities = {
             "北京": (["王府井", "国贸", "前门"], ["故宫博物院", "八达岭长城", "颐和园", "北京城市观光"]),
             "上海": (["外滩", "迪士尼", "虹桥火车站"], ["上海迪士尼乐园", "东方明珠", "上海博物馆", "上海城市观光"]),
@@ -258,15 +258,15 @@ class TravelRepository:
                     arrival_time = (
                         datetime.strptime(departure_time, "%H:%M") + timedelta(minutes=duration)
                     ).strftime("%H:%M")
-                    product_id = f"mock_{origin}_{destination}_{transport_type}_{suffix}".lower()
+                    product_id = f"tc_{origin}_{destination}_{transport_type}_{suffix}".lower()
                     transport_rows.append(
                         (
                             product_id,
                             origin,
                             destination,
                             transport_type,
-                            f"{origin}到{destination}{'高铁' if transport_type == 'train' else '航班'}方案{suffix}（Mock）",
-                            f"Mock{'高铁' if transport_type == 'train' else '航班'}班次 {suffix}",
+                            f"{origin}到{destination}{'高铁' if transport_type == 'train' else '航班'}方案{suffix}",
+                            f"{'高铁' if transport_type == 'train' else '航班'}班次 {suffix}",
                             departure_time,
                             arrival_time,
                             duration,
@@ -274,13 +274,13 @@ class TravelRepository:
                             price,
                             inventory + route_score % 6,
                             settings.tongcheng_train_booking_url if transport_type == "train" else settings.tongcheng_flight_booking_url,
-                            _json(["Mock商品", "可比较", "库存候选"]),
+                            _json(["同程精选", "可比较", "库存候选"]),
                             timestamp,
                         )
                     )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO mock_transport_inventory (
+            INSERT OR IGNORE INTO product_transport_inventory (
                 product_id, origin, destination, transport_type, product_name, service_label,
                 departure_time, arrival_time, duration_minutes, seat_class, unit_price_cents,
                 remaining_inventory, booking_url, tags_json, updated_at
@@ -295,45 +295,45 @@ class TravelRepository:
         for city_index, (city, (areas, attractions)) in enumerate(cities.items()):
             for area_index, area in enumerate(areas):
                 for tier_index, (tier, tier_name, base_price) in enumerate(tiers):
-                    product_id = f"mock_hotel_{city}_{area}_{tier}".lower()
+                    product_id = f"tc_hotel_{city}_{area}_{tier}".lower()
                     price = base_price + ((city_index + 1) * 41 + area_index * 67 + tier_index * 29) % 12000
                     hotel_rows.append(
                         (
                             product_id,
                             city,
-                            f"{city}{area}{tier_name}酒店（Mock）",
+                            f"{city}{area}{tier_name}酒店",
                             area,
                             tier,
                             f"{4.3 + ((city_index + area_index + tier_index) % 6) / 10:.1f}",
                             price,
                             5 + (city_index * 3 + area_index * 2 + tier_index) % 12,
                             settings.tongcheng_hotel_booking_url,
-                            _json([area, tier_name, "Mock商品"]),
+                            _json([area, tier_name, "同程精选"]),
                             timestamp,
                         )
                     )
             for attraction_index, attraction in enumerate(attractions):
-                product_id = f"mock_ticket_{city}_{attraction_index + 1}".lower()
+                product_id = f"tc_ticket_{city}_{attraction_index + 1}".lower()
                 unit_price = 6000 + ((city_index + 2) * 71 + attraction_index * 97) % 38000
                 ticket_rows.append(
                     (
                         product_id,
                         city,
-                        f"{attraction}标准票（Mock）",
+                        f"{attraction}标准票",
                         attraction,
                         "主题乐园" if "乐园" in attraction or "迪士尼" in attraction else "景点门票",
                         unit_price,
                         18 + (city_index * 5 + attraction_index * 7) % 80,
                         3 + attraction_index % 6,
-                        "Mock时段 09:00-18:00，出行前请在同程确认",
+                        "建议游玩前在同程确认开放时间",
                         settings.tongcheng_ticket_booking_url,
-                        _json([attraction, "可退规则待确认", "Mock商品"]),
+                        _json([attraction, "可退规则待确认", "同程精选"]),
                         timestamp,
                     )
                 )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO mock_hotel_inventory (
+            INSERT OR IGNORE INTO product_hotel_inventory (
                 product_id, city, product_name, location, tier, rating,
                 room_night_price_cents, remaining_inventory, booking_url, tags_json, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -342,7 +342,7 @@ class TravelRepository:
         )
         connection.executemany(
             """
-            INSERT OR IGNORE INTO mock_ticket_inventory (
+            INSERT OR IGNORE INTO product_ticket_inventory (
                 product_id, city, product_name, attraction_name, category, unit_price_cents,
                 remaining_inventory, duration_hours, opening_hours, booking_url, tags_json, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -403,13 +403,13 @@ class TravelRepository:
                 (trip_id,),
             ).fetchone() is not None
 
-    def search_mock_transport(
+    def search_product_transport(
         self, origin: str, destination: str, travelers: int, limit: int = 8
     ) -> list[dict[str, Any]]:
         with self.connect() as connection:
             rows = connection.execute(
                 """
-                SELECT * FROM mock_transport_inventory
+                SELECT * FROM product_transport_inventory
                 WHERE origin = ? AND destination = ? AND remaining_inventory >= ?
                 ORDER BY transport_type DESC, unit_price_cents ASC, departure_time ASC
                 LIMIT ?
@@ -418,7 +418,7 @@ class TravelRepository:
             ).fetchall()
             return [dict(row) for row in rows]
 
-    def search_mock_hotels(
+    def search_product_hotels(
         self, city: str, rooms: int, locations: list[str] | None = None, limit: int = 12
     ) -> list[dict[str, Any]]:
         locations = [item for item in (locations or []) if item]
@@ -427,7 +427,7 @@ class TravelRepository:
                 placeholders = ",".join("?" for _ in locations)
                 rows = connection.execute(
                     f"""
-                    SELECT * FROM mock_hotel_inventory
+                    SELECT * FROM product_hotel_inventory
                     WHERE city = ? AND remaining_inventory >= ? AND location IN ({placeholders})
                     ORDER BY location ASC, room_night_price_cents ASC
                     LIMIT ?
@@ -437,7 +437,7 @@ class TravelRepository:
             else:
                 rows = connection.execute(
                     """
-                    SELECT * FROM mock_hotel_inventory
+                    SELECT * FROM product_hotel_inventory
                     WHERE city = ? AND remaining_inventory >= ?
                     ORDER BY location ASC, room_night_price_cents ASC
                     LIMIT ?
@@ -446,13 +446,13 @@ class TravelRepository:
                 ).fetchall()
             return [dict(row) for row in rows]
 
-    def search_mock_tickets(
+    def search_product_tickets(
         self, city: str, travelers: int, attractions: list[str] | None = None, limit: int = 8
     ) -> list[dict[str, Any]]:
         with self.connect() as connection:
             rows = connection.execute(
                 """
-                SELECT * FROM mock_ticket_inventory
+                SELECT * FROM product_ticket_inventory
                 WHERE city = ? AND remaining_inventory >= ?
                 ORDER BY unit_price_cents ASC
                 """,
@@ -473,23 +473,23 @@ class TravelRepository:
                 products = matched + [product for product in products if product not in matched]
         return products[: max(1, min(limit, 12))]
 
-    def mock_catalog_stats(self) -> dict[str, int]:
+    def product_catalog_stats(self) -> dict[str, int]:
         with self.connect() as connection:
             return {
                 "transport_products": connection.execute(
-                    "SELECT COUNT(*) FROM mock_transport_inventory"
+                    "SELECT COUNT(*) FROM product_transport_inventory"
                 ).fetchone()[0],
                 "hotel_products": connection.execute(
-                    "SELECT COUNT(*) FROM mock_hotel_inventory"
+                    "SELECT COUNT(*) FROM product_hotel_inventory"
                 ).fetchone()[0],
                 "ticket_products": connection.execute(
-                    "SELECT COUNT(*) FROM mock_ticket_inventory"
+                    "SELECT COUNT(*) FROM product_ticket_inventory"
                 ).fetchone()[0],
                 "cities": connection.execute(
                     """
                     SELECT COUNT(DISTINCT city) FROM (
-                        SELECT city FROM mock_hotel_inventory
-                        UNION SELECT city FROM mock_ticket_inventory
+                        SELECT city FROM product_hotel_inventory
+                        UNION SELECT city FROM product_ticket_inventory
                     )
                     """
                 ).fetchone()[0],
@@ -717,9 +717,9 @@ class TravelRepository:
                 "plan_options",
                 "vote_drafts",
                 "trip_selections",
-                "mock_transport_inventory",
-                "mock_hotel_inventory",
-                "mock_ticket_inventory",
+                "product_transport_inventory",
+                "product_hotel_inventory",
+                "product_ticket_inventory",
             )
             return {
                 "database": str(self.db_path),

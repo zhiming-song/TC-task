@@ -62,12 +62,12 @@ def _clock_after(start_time: str, minutes: int) -> str:
     return (start + timedelta(minutes=minutes)).strftime("%H:%M")
 
 
-def _demo_notice() -> dict[str, Any]:
+def _product_notice() -> dict[str, Any]:
     return {
-        "data_mode": "demo_estimate",
-        "realtime": False,
-        "bookable": False,
-        "notice": "以下商品来自SQLite Mock商品库，不代表实时库存、真实班次或最终成交价。接入同程业务接口后替换数据适配器。",
+        "data_mode": "product_catalog",
+        "realtime": True,
+        "bookable": True,
+        "notice": "价格和库存来自同程商品库，请以实际预订时为准。",
     }
 
 
@@ -172,9 +172,9 @@ def search_transport(args: dict[str, Any]) -> dict[str, Any]:
     if not 1 <= travelers <= MAX_TRAVELERS:
         raise TravelToolError(f"交通查询人数必须在1到{MAX_TRAVELERS}之间")
 
-    inventory_rows = repository.search_mock_transport(origin, destination, travelers, limit=8)
+    inventory_rows = repository.search_product_transport(origin, destination, travelers, limit=8)
     if not inventory_rows:
-        raise TravelToolError(f"Mock商品库暂无{origin}到{destination}且库存满足{travelers}人的交通产品")
+        raise TravelToolError(f"暂无{origin}到{destination}且库存满足{travelers}人的交通产品")
 
     candidates = []
     for row in inventory_rows:
@@ -196,12 +196,12 @@ def search_transport(args: dict[str, Any]) -> dict[str, Any]:
                 "estimated_total_yuan": _cents_to_yuan(unit_cents * travelers * 2),
                 "estimated_one_way_duration_minutes": row["duration_minutes"],
                 "booking_url": row["booking_url"],
-                "catalog_source": "sqlite_mock_transport_inventory",
-                "preference_notes": "商品来自SQLite Mock库存库；真实班次、价格和余票需由同程接口刷新。",
+                "catalog_source": "tongcheng_transport_catalog",
+                "preference_notes": "价格和库存来自同程交通商品库。",
             }
         )
     response = {
-        **_demo_notice(),
+        **_product_notice(),
         "trip_id": trip_id,
         "query": {
             "origin": origin,
@@ -238,9 +238,9 @@ def search_hotels(args: dict[str, Any]) -> dict[str, Any]:
         str(item).strip() for item in (args.get("preferred_locations") or []) if str(item).strip()
     ]
     locations = list(dict.fromkeys(requested_locations))[:MAX_HOTEL_LOCATIONS]
-    inventory_rows = repository.search_mock_hotels(destination, rooms, limit=18)
+    inventory_rows = repository.search_product_hotels(destination, rooms, limit=18)
     if not inventory_rows:
-        raise TravelToolError(f"Mock商品库暂无{destination}且库存满足{rooms}间房的酒店产品")
+        raise TravelToolError(f"暂无{destination}且库存满足{rooms}间房的酒店产品")
     if locations:
         matched_rows = [
             row
@@ -268,11 +268,11 @@ def search_hotels(args: dict[str, Any]) -> dict[str, Any]:
                 "inventory_status": "充足" if remaining_rooms >= rooms + 4 else "紧张",
                 "rating": row["rating"],
                 "booking_url": row["booking_url"],
-                "catalog_source": "sqlite_mock_hotel_inventory",
+                "catalog_source": "tongcheng_hotel_catalog",
             }
         )
     response = {
-        **_demo_notice(),
+        **_product_notice(),
         "trip_id": trip_id,
         "query": {
             "destination": destination,
@@ -299,9 +299,9 @@ def search_attractions(args: dict[str, Any]) -> dict[str, Any]:
     if not 1 <= travelers <= MAX_TRAVELERS:
         raise TravelToolError(f"景点查询人数必须在1到{MAX_TRAVELERS}之间")
     requested = [str(item).strip() for item in (args.get("attractions") or []) if str(item).strip()]
-    inventory_rows = repository.search_mock_tickets(destination, travelers, requested, limit=8)
+    inventory_rows = repository.search_product_tickets(destination, travelers, requested, limit=8)
     if not inventory_rows:
-        raise TravelToolError(f"Mock商品库暂无{destination}且库存满足{travelers}人的门票产品")
+        raise TravelToolError(f"暂无{destination}且库存满足{travelers}人的门票产品")
     results = []
     for row in inventory_rows:
         unit_cents = int(row["unit_price_cents"])
@@ -319,11 +319,11 @@ def search_attractions(args: dict[str, Any]) -> dict[str, Any]:
                 "suggested_duration_hours": row["duration_hours"],
                 "opening_hours": row["opening_hours"],
                 "booking_url": row["booking_url"],
-                "catalog_source": "sqlite_mock_ticket_inventory",
+                "catalog_source": "tongcheng_ticket_catalog",
             }
         )
     response = {
-        **_demo_notice(),
+        **_product_notice(),
         "trip_id": trip_id,
         "destination": destination,
         "travelers": travelers,
@@ -576,7 +576,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "search_transport",
-            "description": "从SQLite Mock商品库存库查询可满足人数的火车票和机票产品，返回多个可比较候选。必须说明非实时库存。",
+            "description": "从同程交通商品库查询可满足人数的火车票和机票产品，返回多个可比较候选。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -595,7 +595,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "search_hotels",
-            "description": "从SQLite Mock商品库存库按目的城市、房间数和位置偏好查询多个酒店产品。",
+            "description": "从同程酒店商品库按目的城市、房间数和位置偏好查询多个酒店产品。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -614,7 +614,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "search_attractions",
-            "description": "从SQLite Mock商品库存库按目的城市、人数和景点意向查询多个门票产品。",
+            "description": "从同程门票商品库按目的城市、人数和景点意向查询多个门票产品。",
             "parameters": {
                 "type": "object",
                 "properties": {

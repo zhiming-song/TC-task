@@ -22,7 +22,6 @@ const tierLabel = computed(() => ({
         <strong>{{ card.title }}</strong>
         <span>{{ card.location }} · {{ tierLabel }}</span>
       </div>
-      <span class="mode-badge">{{ card.realtime ? '实时' : '演示' }}</span>
     </div>
 
     <div class="stay-line">
