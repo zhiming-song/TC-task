@@ -15,7 +15,7 @@ const activeMemberName = ref('林一')
 const activeMember = computed(() => members.find((member) => member.name === activeMemberName.value) || members[0])
 
 const messages = ref([
-  { id: 1, sender: '林一', avatar: '林', color: '#ff9a45', text: '今年国庆去上海玩吧，我们正好5个人', time: '20:16', mine: true, selected: true },
+  { id: 1, sender: '林一', avatar: '林', color: '#ff9a45', text: '今年国庆从北京去上海玩吧，我们正好5个人', time: '20:16', mine: true, selected: true },
   { id: 2, sender: 'Evan', avatar: 'E', color: '#5b8ff9', text: '高铁吧，飞机延误怕了，而且大家还能坐一起', time: '20:17', selected: true },
   { id: 3, sender: '小北', avatar: '北', color: '#8b6cf0', text: '我要去迪士尼乐园！！这个必须安排', time: '20:18', selected: true },
   { id: 4, sender: '程程', avatar: '程', color: '#31b49c', text: '住外滩附近吧，晚上可以散步看夜景', time: '20:20', selected: true },
