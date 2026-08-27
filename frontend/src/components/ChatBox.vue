@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { createChatJob, pollChatJob, saveTripSelection } from '../api/agent'
 import HotelCard from './HotelCard.vue'
 import TicketCard from './TicketCard.vue'
@@ -10,12 +10,23 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  showOrderButton: {
+    type: Boolean,
+    default: false,
+  },
 })
+const emit = defineEmits(['open-summary'])
 
 const messages = ref([])
 const input = ref('')
 const loading = ref(false)
 const listEl = ref(null)
+const confirmedTransportId = ref('')
+const confirmedHotelId = ref('')
+const confirmedTicketIds = ref([])
+const summaryVisible = ref(false)
+const summaryLinkVisible = ref(false)
+const summaryDraft = ref({ transport: '', hotel: '', ticket: [] })
 const starters = [
   '我想规划一次多人旅行',
   '帮我整理这段群聊里的出行需求',
@@ -155,6 +166,55 @@ function ticketCards(msg) {
   return msg.cards?.filter((card) => card.type === 'ticket_offer') || []
 }
 
+function allCardsByType(type) {
+  const cards = []
+  const seen = new Set()
+  for (const msg of messages.value) {
+    for (const card of msg.cards || []) {
+      if (card.type !== type || seen.has(card.id)) continue
+      seen.add(card.id)
+      cards.push(card)
+    }
+  }
+  return cards
+}
+
+const summarySections = computed(() => [
+  {
+    key: 'transport',
+    title: '交通',
+    cards: allCardsByType('transport_offer'),
+    selectedIds: confirmedTransportId.value ? [confirmedTransportId.value] : (summaryDraft.value.transport ? [summaryDraft.value.transport] : []),
+    locked: Boolean(confirmedTransportId.value),
+  },
+  {
+    key: 'hotel',
+    title: '酒店',
+    cards: allCardsByType('hotel_offer'),
+    selectedIds: confirmedHotelId.value ? [confirmedHotelId.value] : (summaryDraft.value.hotel ? [summaryDraft.value.hotel] : []),
+    locked: Boolean(confirmedHotelId.value),
+  },
+  {
+    key: 'ticket',
+    title: '景点门票',
+    cards: allCardsByType('ticket_offer'),
+    selectedIds: confirmedTicketIds.value.length ? confirmedTicketIds.value : summaryDraft.value.ticket,
+    locked: confirmedTicketIds.value.length > 0,
+  },
+])
+
+function handleSummarySelect({ sectionKey, cardId }) {
+  const section = summarySections.value.find((item) => item.key === sectionKey)
+  if (!section || section.locked) return
+  if (sectionKey === 'ticket') {
+    summaryDraft.value.ticket = summaryDraft.value.ticket.includes(cardId)
+      ? summaryDraft.value.ticket.filter((id) => id !== cardId)
+      : [...summaryDraft.value.ticket, cardId]
+    return
+  }
+  summaryDraft.value[sectionKey] = cardId
+}
+
 function selectedContext(label) {
   const source = [...messages.value].reverse().find((item) => item.apiContent?.includes(label))?.apiContent || ''
   const start = source.indexOf(label)
@@ -184,7 +244,12 @@ function selectTicket(msg, card) {
 async function continueWithTransport(msg) {
   if (loading.value || msg.selectionConfirmed) return
   const selected = msg.cards?.find((card) => card.id === msg.selectedCardId)
-  if (!selected) return
+  if (!selected) {
+    input.value = '未选择交通方案，进入下一项。请基于已确认的行程信息继续执行酒店推荐。'
+    const succeeded = await send('未选择交通候选。现在只进入下一项，请直接搜索并展示多个酒店库存候选；如缺少必要行程信息，请一次只追问一个问题。')
+    if (succeeded) msg.selectionConfirmed = true
+    return
+  }
 
   const transportName = selected.transport_type === 'train' ? '火车票方案' : '机票方案'
   const latestUserMessage = [...messages.value].reverse().find((item) => item.role === 'user')
@@ -212,13 +277,19 @@ async function continueWithTransport(msg) {
   input.value = visibleMessage
   await nextTick()
   const succeeded = await send(compactContext)
+  if (succeeded) confirmedTransportId.value = selected.id
   if (!succeeded) msg.selectionConfirmed = false
 }
 
 async function continueWithHotel(msg) {
   if (loading.value || msg.hotelSelectionConfirmed) return
   const selected = hotelCards(msg).find((card) => card.id === msg.selectedHotelId)
-  if (!selected) return
+  if (!selected) {
+    input.value = '未选择酒店方案，进入下一项。请基于已确认的行程信息继续执行景点/门票推荐。'
+    const succeeded = await send('未选择酒店候选。现在只进入下一项，请推荐景点和门票候选；如缺少必要行程信息，请一次只追问一个问题。')
+    if (succeeded) msg.hotelSelectionConfirmed = true
+    return
+  }
 
   msg.hotelSelectionConfirmed = true
   await saveTripSelection(selected.trip_id, 'hotel', selected)
@@ -226,13 +297,24 @@ async function continueWithHotel(msg) {
   const context = `行程ID：${selected.trip_id}。已选择酒店完整数据：${JSON.stringify(selected)}。现在只进入下一项，请推荐景点和门票候选。`
   await nextTick()
   const succeeded = await send(context)
+  if (succeeded) confirmedHotelId.value = selected.id
   if (!succeeded) msg.hotelSelectionConfirmed = false
 }
 
 async function continueWithTicket(msg) {
   if (loading.value || msg.ticketSelectionConfirmed) return
   const selected = ticketCards(msg).filter((card) => msg.selectedTicketIds?.includes(card.id))
-  if (!selected.length) return
+  if (!selected.length) {
+    const tripId = ticketCards(msg)[0]?.trip_id || ''
+    input.value = '未选择门票，进入下一项。请生成旅行计划汇总。'
+    const succeeded = await send(`行程ID：${tripId}。未选择门票候选。请基于已确认信息生成旅行计划汇总；未选择的交通、酒店、景点门票不要写成已确认项目。`)
+    if (succeeded) {
+      msg.ticketSelectionConfirmed = true
+      confirmedTicketIds.value = []
+      summaryLinkVisible.value = true
+    }
+    return
+  }
 
   msg.ticketSelectionConfirmed = true
   await Promise.all(selected.map((item) => saveTripSelection(item.trip_id, 'ticket', item)))
@@ -243,7 +325,15 @@ async function continueWithTicket(msg) {
   const context = `行程ID：${selected[0].trip_id}。已选择门票完整数据：${JSON.stringify(selected)}。${hotel ? `已选择酒店完整数据：${JSON.stringify(hotel)}。` : ''}请记录全部选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
   await nextTick()
   const succeeded = await send(context)
+  if (succeeded) {
+    confirmedTicketIds.value = selected.map((card) => card.id)
+    summaryLinkVisible.value = true
+  }
   if (!succeeded) msg.ticketSelectionConfirmed = false
+}
+
+function openSummaryFromLink() {
+  emit('open-summary', summarySections.value)
 }
 
 function onKeydown(event) {
@@ -304,7 +394,7 @@ onMounted(async () => {
             <button
               class="next-button"
               type="button"
-              :disabled="loading || !msg.selectedCardId || msg.selectionConfirmed"
+              :disabled="loading || msg.selectionConfirmed"
               @click="continueWithTransport(msg)"
             >
               {{ msg.selectionConfirmed ? '已进入下一项' : '进入下一项' }}
@@ -333,7 +423,7 @@ onMounted(async () => {
             <button
               class="next-button"
               type="button"
-              :disabled="loading || !msg.selectedHotelId || msg.hotelSelectionConfirmed"
+              :disabled="loading || msg.hotelSelectionConfirmed"
               @click="continueWithHotel(msg)"
             >
               {{ msg.hotelSelectionConfirmed ? '已进入下一项' : '进入下一项' }}
@@ -362,15 +452,21 @@ onMounted(async () => {
             <button
               class="next-button"
               type="button"
-              :disabled="loading || !msg.selectedTicketIds?.length || msg.ticketSelectionConfirmed"
+              :disabled="loading || msg.ticketSelectionConfirmed"
               @click="continueWithTicket(msg)"
             >
-              {{ msg.ticketSelectionConfirmed ? '已生成下一步' : '生成行程' }}
+              {{ msg.ticketSelectionConfirmed ? '已进行汇总' : '进行汇总' }}
               <b v-if="!msg.ticketSelectionConfirmed">›</b>
             </button>
           </div>
         </div>
       </div>
+
+      <div v-if="summaryLinkVisible" class="summary-link-message">
+        <p>根据上面的选择，为你生成一份旅行计划汇总页面。</p>
+        <a href="#trip-summary" @click.prevent="openSummaryFromLink">旅行计划汇总</a>
+      </div>
+
     </div>
 
     <div class="composer">
@@ -385,6 +481,7 @@ onMounted(async () => {
         {{ loading ? '生成中' : '发送' }}
       </button>
     </div>
+    <button v-if="props.showOrderButton" class="order-button" type="button">下单</button>
   </div>
 </template>
 
@@ -394,6 +491,38 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.summary-link-message {
+  margin: 0 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--assistant-bubble);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.summary-link-message p {
+  margin: 0 0 6px;
+}
+
+.summary-link-message a {
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.order-button {
+  width: calc(100% - 28px);
+  height: 44px;
+  margin: 10px 14px 14px;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  background: var(--primary);
+  font-size: 15px;
+  cursor: pointer;
 }
 
 .list {

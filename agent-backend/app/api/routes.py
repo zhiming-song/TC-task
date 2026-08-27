@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.agent.core import _ticket_cards, agent
+from app.agent.core import _hotel_cards, _ticket_cards, agent
 from app.agent.travel_tools import execute_tool, list_capabilities
 from app.config import settings
 from app.schemas import ChatRequest, ChatResponse, HealthResponse
@@ -23,6 +23,42 @@ _jobs_lock = threading.Lock()
 _executor = ThreadPoolExecutor(max_workers=4)
 
 
+def _hotel_reply(cards):
+    lines = ["已生成酒店候选（演示估价、非实时库存、不可直接预订）：", "", "酒店候选："]
+    for index, card in enumerate(cards, 1):
+        lines.append(
+            f"{index}. {card.get('title')}；位置：{card.get('location')}；"
+            f"{card.get('rooms')}间×{card.get('nights')}晚总价：¥{card.get('total_price_yuan')}"
+        )
+    lines.append("\n以上价格与库存来自 Mock 商品库，真实价格与空房需刷新确认。")
+    return "\n".join(lines)
+
+
+def _ensure_cards(result, messages):
+    if result.cards:
+        return result
+    history = "\n".join(message.content for message in messages)
+    trip_match = re.search(r"trip_[A-Za-z0-9_]+", history)
+    if not trip_match:
+        return result
+    trip_id = trip_match.group(0)
+    bundle = repository.get_trip_bundle(trip_id)
+    if not bundle or not bundle.get("trip"):
+        return result
+    trip = bundle["trip"]
+    args = json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False)
+    if "酒店" in history or "住宿" in history:
+        result.cards = _hotel_cards(execute_tool("search_hotels", args))
+        count = len(re.findall(r"(?m)^\s*\d+[.、]", result.reply))
+        if count:
+            result.cards = result.cards[:count]
+        if result.cards:
+            result.reply = _hotel_reply(result.cards)
+    elif "景点" in history or "门票" in history:
+        result.cards = _ticket_cards(execute_tool("search_attractions", args))
+    return result
+
+
 def _run_job(job_id: str, request: ChatRequest) -> None:
     with _jobs_lock:
         _jobs[job_id]["status"] = "running"
@@ -32,7 +68,11 @@ def _run_job(job_id: str, request: ChatRequest) -> None:
         if not result.cards:
             history = "\n".join(message.content for message in request.messages)
             if "景点" in history or "门票" in history:
+                history += "\n鏅偣 闂ㄧエ"
+            if "景点" in history or "门票" in history:
                 match = re.search(r'(?:行程ID：|trip_id[：:"]+)(trip_[A-Za-z0-9_]+)', history)
+                if not match:
+                    match = re.search(r"(trip_[A-Za-z0-9_]+)", history)
                 if match:
                     trip_id = match.group(1)
                     bundle = repository.get_trip_bundle(trip_id)
@@ -40,6 +80,7 @@ def _run_job(job_id: str, request: ChatRequest) -> None:
                         trip = bundle["trip"]
                         raw = execute_tool("search_attractions", json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False))
                         result.cards = _ticket_cards(raw)
+        result = _ensure_cards(result, request.messages)
         with _jobs_lock:
             _jobs[job_id].update(status="completed", progress="已完成", reply=result.reply, cards=result.cards)
     except Exception as exc:
@@ -117,6 +158,7 @@ def chat(request: ChatRequest) -> ChatResponse:
     except Exception as exc:
         logger.exception("调用模型失败")
         raise HTTPException(status_code=502, detail=f"调用模型失败: {exc}") from exc
+    result = _ensure_cards(result, request.messages)
     return ChatResponse(reply=result.reply, model=agent.model, cards=result.cards)
 
 

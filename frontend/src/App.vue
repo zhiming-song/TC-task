@@ -2,12 +2,15 @@
 import { onMounted, ref } from 'vue'
 import ChatBox from './components/ChatBox.vue'
 import GroupChatImport from './components/GroupChatImport.vue'
+import TripSummary from './components/TripSummary.vue'
 import { fetchHealth } from './api/agent'
 
 const status = ref({ online: false, model: '未连接', keyReady: false })
 const screen = ref('group')
 const importedMessage = ref('')
 const importedCount = ref(0)
+const summarySections = ref([])
+const showOrderButton = ref(false)
 
 function openAssistant(payload) {
   importedMessage.value = payload.content
@@ -19,6 +22,17 @@ function backToGroup() {
   screen.value = 'group'
   importedMessage.value = ''
   importedCount.value = 0
+  showOrderButton.value = false
+}
+
+function openSummary(sections) {
+  summarySections.value = sections
+  screen.value = 'summary'
+}
+
+function backToAssistant() {
+  screen.value = 'assistant'
+  showOrderButton.value = true
 }
 
 onMounted(async () => {
@@ -38,8 +52,8 @@ onMounted(async () => {
 <template>
   <GroupChatImport v-if="screen === 'group'" class="group-shell" @import-chat="openAssistant" />
 
-  <div v-else class="shell">
-    <header class="header">
+  <div v-else class="shell" :class="{ 'summary-shell': screen === 'summary' }">
+    <header v-if="screen === 'assistant'" class="header">
       <button class="back-button" aria-label="返回群聊" @click="backToGroup">‹</button>
       <div>
         <h1>程星AI · 智能行程助手</h1>
@@ -51,11 +65,22 @@ onMounted(async () => {
       </div>
     </header>
 
-    <p v-if="status.online && !status.keyReady" class="warning">
+    <p v-if="screen === 'assistant' && status.online && !status.keyReady" class="warning">
       后端未检测到 API Key，请在 agent-backend/.env 中配置 DEEPSEEK_API_KEY
     </p>
 
-    <ChatBox :initial-message="importedMessage" />
+    <ChatBox v-show="screen === 'assistant'" :initial-message="importedMessage" :show-order-button="showOrderButton" @open-summary="openSummary" />
+
+    <header v-if="screen === 'summary'" class="header">
+      <button class="back-button" aria-label="返回行程助手" @click="backToAssistant">‹</button>
+      <div>
+        <h1>旅行计划汇总</h1>
+        <p class="subtitle">确认已选方案，补充未选择的模块</p>
+      </div>
+    </header>
+    <main v-if="screen === 'summary'" class="summary-page">
+      <TripSummary :sections="summarySections" />
+    </main>
   </div>
 </template>
 
@@ -71,6 +96,28 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.summary-page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.summary-shell {
+  max-width: 720px;
+}
+
+.summary-shell .header {
+  position: relative;
+  justify-content: flex-start;
+}
+
+.summary-shell .header > div {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .group-shell {
@@ -179,6 +226,10 @@ h1 {
 
   .warning {
     padding: 8px 16px;
+  }
+
+  .summary-page {
+    padding: 0;
   }
 }
 </style>
