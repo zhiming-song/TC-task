@@ -35,9 +35,22 @@ def _hotel_reply(cards):
 
 
 def _ensure_cards(result, messages):
-    if result.cards:
-        return result
     history = "\n".join(message.content for message in messages)
+    latest_user = next((message.content for message in reversed(messages) if message.role == "user"), "")
+    if "旅行计划汇总" in latest_user or "完整行程草案" in latest_user or "生成旅行计划" in latest_user:
+        result.cards = []
+        return result
+    wants_attractions = any(
+        phrase in latest_user
+        for phrase in ("推荐景点", "景点/门票", "景点和门票", "搜索景点", "搜索门票")
+    )
+    wants_hotels = any(
+        phrase in latest_user
+        for phrase in ("酒店推荐", "酒店库存候选", "搜索酒店", "进入酒店", "进入下一项", "下一项", "继续")
+    ) or any(word in history for word in ("酒店", "住宿", "入住", "酒店方案"))
+    expected_type = "ticket_offer" if wants_attractions else "hotel_offer" if wants_hotels else ""
+    if not expected_type or (result.cards and all(card.get("type") == expected_type for card in result.cards)):
+        return result
     trip_match = re.search(r"trip_[A-Za-z0-9_]+", history)
     if not trip_match:
         return result
@@ -46,15 +59,23 @@ def _ensure_cards(result, messages):
     if not bundle or not bundle.get("trip"):
         return result
     trip = bundle["trip"]
-    args = json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False)
-    if "酒店" in history or "住宿" in history:
+    if wants_hotels:
+        args = json.dumps({
+            "trip_id": trip_id,
+            "destination": trip["destination"],
+            "checkin_date": trip["start_date"],
+            "checkout_date": trip["end_date"],
+            "rooms": trip["rooms"],
+            "preferred_locations": trip.get("lodging_locations") or [],
+        }, ensure_ascii=False)
         result.cards = _hotel_cards(execute_tool("search_hotels", args))
         count = len(re.findall(r"(?m)^\s*\d+[.、]", result.reply))
         if count:
             result.cards = result.cards[:count]
         if result.cards:
             result.reply = _hotel_reply(result.cards)
-    elif "景点" in history or "门票" in history:
+    elif wants_attractions:
+        args = json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False)
         result.cards = _ticket_cards(execute_tool("search_attractions", args))
     return result
 

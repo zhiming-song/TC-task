@@ -224,7 +224,11 @@ class Agent:
         payload = self._build_payload(messages)
         client = get_client()
         cards: list[dict[str, Any]] = []
-
+        latest_user_text = next((item.content for item in reversed(messages) if item.role == "user"), "")
+        is_summary_request = any(
+            phrase in latest_user_text
+            for phrase in ("旅行计划汇总", "完整行程草案", "生成旅行计划", "生成行程草案")
+        )
         for _ in range(self.max_tool_rounds):
             response = client.chat.completions.create(
                 model=self.model,
@@ -236,7 +240,7 @@ class Agent:
             message = response.choices[0].message
             if not message.tool_calls:
                 reply = message.content or "请提供出发地、目的地、出行日期和人数，我来开始规划。"
-                if not cards and any(word in "\n".join(item.content for item in messages) for word in ("景点", "门票")):
+                if not is_summary_request and not cards and any(word in "\n".join(item.content for item in messages) for word in ("景点", "门票")):
                     import re
                     history_text = "\n".join(item.content for item in messages)
                     trip_match = re.search(r"trip_[A-Za-z0-9_]+", history_text)
@@ -246,7 +250,7 @@ class Agent:
                         trip = bundle["trip"]
                         offers = [json.loads(row["payload_json"]) for row in bundle["attraction_tickets"]]
                         cards.extend(_ticket_cards(json.dumps({"ok": True, "result": {"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"], "attractions": offers, "data_mode": "demo_estimate", "realtime": False, "bookable": False}}, ensure_ascii=False)))
-                return AgentRunResult(reply=reply, cards=cards)
+                return AgentRunResult(reply=reply, cards=[] if is_summary_request else cards)
 
             payload.append(
                 {
@@ -271,9 +275,10 @@ class Agent:
                     }
                 )
 
+        fallback = "已为你筛选好候选方案，请查看下方卡片。" if cards else "本轮需要执行的规划步骤过多。请先确认当前行程信息，或把需求拆成一个步骤继续。"
         return AgentRunResult(
-            reply="本轮需要执行的规划步骤过多。请先确认当前行程信息，或把需求拆成一个步骤继续。",
-            cards=cards,
+            reply=fallback,
+            cards=[] if is_summary_request else cards,
         )
 
     def chat(self, messages: list[Message], temperature: float = 0.3) -> str:

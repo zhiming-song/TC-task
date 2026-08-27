@@ -92,7 +92,7 @@ function getErrorMessage(error) {
   return '请求失败，请检查网络连接后重试。'
 }
 
-async function send(contextContent = '') {
+async function send(contextContent = '', suppressCards = false) {
   const text = input.value.trim()
   if (!text || loading.value) return
 
@@ -125,7 +125,7 @@ async function send(contextContent = '') {
           await new Promise((resolve) => setTimeout(resolve, 18))
         }
       }
-      if (job.cards?.length) messages.value[index].cards = job.cards
+      if (!suppressCards && job.cards?.length) messages.value[index].cards = job.cards
       if (job.status === 'failed') throw new Error(job.error || '生成失败')
       completed = job.status === 'completed'
       if (!completed) await new Promise((resolve) => setTimeout(resolve, 400))
@@ -164,6 +164,11 @@ function hotelCards(msg) {
 
 function ticketCards(msg) {
   return msg.cards?.filter((card) => card.type === 'ticket_offer') || []
+}
+
+function canShowTickets(msg, index) {
+  if (!ticketCards(msg).length) return false
+  return messages.value.slice(0, index).some((item) => item.hotelSelectionConfirmed)
 }
 
 function allCardsByType(type) {
@@ -307,11 +312,12 @@ async function continueWithTicket(msg) {
   if (!selected.length) {
     const tripId = ticketCards(msg)[0]?.trip_id || ''
     input.value = '未选择门票，进入下一项。请生成旅行计划汇总。'
-    const succeeded = await send(`行程ID：${tripId}。未选择门票候选。请基于已确认信息生成旅行计划汇总；未选择的交通、酒店、景点门票不要写成已确认项目。`)
+    const succeeded = await send(`行程ID：${tripId}。未选择门票候选。请基于已确认信息生成旅行计划汇总；未选择的交通、酒店、景点门票不要写成已确认项目。`, true)
     if (succeeded) {
       msg.ticketSelectionConfirmed = true
       confirmedTicketIds.value = []
       summaryLinkVisible.value = true
+      appendSummaryLink()
     }
     return
   }
@@ -324,16 +330,22 @@ async function continueWithTicket(msg) {
   input.value = `我已选择门票：${productNames}。${hotelSummary}请基于以上已选交通、酒店和门票方案生成完整行程草案。`
   const context = `行程ID：${selected[0].trip_id}。已选择门票完整数据：${JSON.stringify(selected)}。${hotel ? `已选择酒店完整数据：${JSON.stringify(hotel)}。` : ''}请记录全部选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
   await nextTick()
-  const succeeded = await send(context)
+  const succeeded = await send(context, true)
   if (succeeded) {
     confirmedTicketIds.value = selected.map((card) => card.id)
     summaryLinkVisible.value = true
+    appendSummaryLink()
   }
   if (!succeeded) msg.ticketSelectionConfirmed = false
 }
 
 function openSummaryFromLink() {
   emit('open-summary', summarySections.value)
+}
+
+function appendSummaryLink() {
+  const message = [...messages.value].reverse().find((item) => item.role === 'assistant' && item.content)
+  if (message) message.summaryLink = true
 }
 
 function onKeydown(event) {
@@ -371,7 +383,11 @@ onMounted(async () => {
         <div class="message-stack">
           <div class="bubble" :class="{ 'typing-bubble': !msg.content }">
             <div v-if="msg.content" class="message-rich" v-html="formatMessage(msg.content)"></div>
-            <span v-else class="typing">{{ msg.progress || '思考中…' }}</span>
+            <span v-if="!msg.content" class="typing">{{ msg.progress || '' }}</span>
+          </div>
+          <div v-if="summaryLinkVisible && i === messages.length - 1" class="summary-link-message">
+            <p>根据上面的选择，为你生成一份旅行计划汇总页面。</p>
+            <a href="#trip-summary" @click.prevent="openSummaryFromLink">旅行计划汇总</a>
           </div>
           <div v-if="transportCards(msg).length" class="card-section-title">
             <strong>交通库存候选</strong>
@@ -431,11 +447,11 @@ onMounted(async () => {
             </button>
           </div>
 
-          <div v-if="ticketCards(msg).length" class="card-section-title">
+          <div v-if="canShowTickets(msg, i)" class="card-section-title">
             <strong>景点门票库存候选</strong>
             <span>{{ ticketCards(msg).length }} 个产品可对比</span>
           </div>
-          <div v-if="ticketCards(msg).length" class="offer-grid">
+          <div v-if="canShowTickets(msg, i)" class="offer-grid">
             <TicketCard
               v-for="card in ticketCards(msg)"
               :key="card.id"
@@ -444,7 +460,7 @@ onMounted(async () => {
               @select="selectTicket(msg, card)"
             />
           </div>
-          <div v-if="ticketCards(msg).length" class="choice-bar">
+          <div v-if="canShowTickets(msg, i) && !msg.ticketSelectionConfirmed" class="choice-bar">
             <span v-if="msg.selectedTicketIds?.length">
               {{ msg.ticketSelectionConfirmed ? '已提交所选门票' : `已选择 ${msg.selectedTicketIds.length} 个门票产品` }}
             </span>
@@ -460,11 +476,6 @@ onMounted(async () => {
             </button>
           </div>
         </div>
-      </div>
-
-      <div v-if="summaryLinkVisible" class="summary-link-message">
-        <p>根据上面的选择，为你生成一份旅行计划汇总页面。</p>
-        <a href="#trip-summary" @click.prevent="openSummaryFromLink">旅行计划汇总</a>
       </div>
 
     </div>
