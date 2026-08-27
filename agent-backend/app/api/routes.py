@@ -1,5 +1,8 @@
 import json
 import logging
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Iterator
 
 from fastapi import APIRouter, HTTPException
@@ -14,6 +17,23 @@ from app.storage import repository
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["agent"])
+_jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
+_executor = ThreadPoolExecutor(max_workers=4)
+
+
+def _run_job(job_id: str, request: ChatRequest) -> None:
+    with _jobs_lock:
+        _jobs[job_id]["status"] = "running"
+        _jobs[job_id]["progress"] = "正在分析你的行程需求…"
+    try:
+        result = agent.run(request.messages, temperature=request.temperature)
+        with _jobs_lock:
+            _jobs[job_id].update(status="completed", progress="已完成", reply=result.reply, cards=result.cards)
+    except Exception as exc:
+        logger.exception("轮询任务执行失败")
+        with _jobs_lock:
+            _jobs[job_id].update(status="failed", progress="生成失败", error=str(exc))
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -67,6 +87,24 @@ def chat(request: ChatRequest) -> ChatResponse:
         logger.exception("调用模型失败")
         raise HTTPException(status_code=502, detail=f"调用模型失败: {exc}") from exc
     return ChatResponse(reply=result.reply, model=agent.model, cards=result.cards)
+
+
+@router.post("/chat/jobs")
+def create_chat_job(request: ChatRequest) -> dict:
+    job_id = uuid.uuid4().hex
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "pending", "progress": "正在排队…", "reply": "", "cards": []}
+    _executor.submit(_run_job, job_id, request)
+    return {"job_id": job_id, "status": "pending"}
+
+
+@router.get("/chat/jobs/{job_id}")
+def get_chat_job(job_id: str) -> dict:
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="任务不存在")
+        return {"job_id": job_id, **job}
 
 
 @router.post("/chat/stream")

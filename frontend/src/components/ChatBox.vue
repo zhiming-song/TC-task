@@ -1,6 +1,6 @@
 <script setup>
 import { nextTick, onMounted, ref } from 'vue'
-import { chatStream } from '../api/agent'
+import { createChatJob, pollChatJob } from '../api/agent'
 import HotelCard from './HotelCard.vue'
 import TicketCard from './TicketCard.vue'
 import TransportCard from './TransportCard.vue'
@@ -88,17 +88,24 @@ async function send(contextContent = '') {
   await scrollToBottom()
 
   try {
-    await chatStream(
-      payload,
-      (token) => {
-        messages.value[index].content += token
-        scrollToBottom()
-      },
-      (card) => {
-        messages.value[index].cards.push(card)
-        scrollToBottom()
-      },
-    )
+    const { job_id: jobId } = await createChatJob(payload)
+    let shown = 0
+    let completed = false
+    while (!completed) {
+      const job = await pollChatJob(jobId)
+      if (job.progress && !job.reply) messages.value[index].progress = job.progress
+      if (job.reply.length > shown) {
+        for (const char of job.reply.slice(shown)) {
+          messages.value[index].content += char
+          shown += 1
+          await new Promise((resolve) => setTimeout(resolve, 18))
+        }
+      }
+      if (job.cards?.length) messages.value[index].cards = job.cards
+      if (job.status === 'failed') throw new Error(job.error || '生成失败')
+      completed = job.status === 'completed'
+      if (!completed) await new Promise((resolve) => setTimeout(resolve, 400))
+    }
     return true
   } catch (err) {
     messages.value[index].content = err.message.includes('Content Exists Risk')
@@ -241,7 +248,7 @@ onMounted(async () => {
         <div class="message-stack">
           <div class="bubble" :class="{ 'typing-bubble': !msg.content }">
             <div v-if="msg.content" class="message-rich" v-html="formatMessage(msg.content)"></div>
-            <span v-else class="typing">思考中…</span>
+            <span v-else class="typing">{{ msg.progress || '思考中…' }}</span>
           </div>
           <div v-if="transportCards(msg).length" class="card-section-title">
             <strong>交通库存候选</strong>

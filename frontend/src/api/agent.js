@@ -72,3 +72,15 @@ export async function chatStream(messages, onToken, onCard = () => {}, temperatu
     }
   }
 }
+
+export async function createChatJob(messages, temperature = 0.3) {
+  const res = await fetch(`${BASE_URL}/chat/jobs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, temperature }) })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
+}
+
+export async function pollChatJob(jobId) {
+  const res = await fetch(`${BASE_URL}/chat/jobs/${jobId}`)
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
+}
