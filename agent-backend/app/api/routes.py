@@ -2,14 +2,15 @@ import json
 import logging
 import threading
 import uuid
+import re
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Iterator
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.agent.core import agent
-from app.agent.travel_tools import list_capabilities
+from app.agent.core import _ticket_cards, agent
+from app.agent.travel_tools import execute_tool, list_capabilities
 from app.config import settings
 from app.schemas import ChatRequest, ChatResponse, HealthResponse
 from app.storage import repository
@@ -28,6 +29,17 @@ def _run_job(job_id: str, request: ChatRequest) -> None:
         _jobs[job_id]["progress"] = "正在分析你的行程需求…"
     try:
         result = agent.run(request.messages, temperature=request.temperature)
+        if not result.cards:
+            history = "\n".join(message.content for message in request.messages)
+            if "景点" in history or "门票" in history:
+                match = re.search(r'(?:行程ID：|trip_id[：:"]+)(trip_[A-Za-z0-9_]+)', history)
+                if match:
+                    trip_id = match.group(1)
+                    bundle = repository.get_trip_bundle(trip_id)
+                    if bundle and bundle.get("trip"):
+                        trip = bundle["trip"]
+                        raw = execute_tool("search_attractions", json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False))
+                        result.cards = _ticket_cards(raw)
         with _jobs_lock:
             _jobs[job_id].update(status="completed", progress="已完成", reply=result.reply, cards=result.cards)
     except Exception as exc:

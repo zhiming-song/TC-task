@@ -155,6 +155,19 @@ function ticketCards(msg) {
   return msg.cards?.filter((card) => card.type === 'ticket_offer') || []
 }
 
+function selectedContext(label) {
+  const source = [...messages.value].reverse().find((item) => item.apiContent?.includes(label))?.apiContent || ''
+  const start = source.indexOf(label)
+  if (start < 0) return null
+  const jsonStart = source.indexOf('{', start)
+  if (jsonStart < 0) return null
+  try {
+    return JSON.parse(source.slice(jsonStart, source.indexOf('。', jsonStart)))
+  } catch {
+    return null
+  }
+}
+
 function selectHotel(msg, card) {
   if (loading.value || msg.hotelSelectionConfirmed) return
   msg.selectedHotelId = card.id
@@ -224,8 +237,10 @@ async function continueWithTicket(msg) {
   msg.ticketSelectionConfirmed = true
   await Promise.all(selected.map((item) => saveTripSelection(item.trip_id, 'ticket', item)))
   const productNames = selected.map((card) => card.title).join('、')
-  input.value = `我选择${productNames}，请记录产品选择并继续生成行程草案。`
-  const context = `行程ID：${selected[0].trip_id}。已选择门票完整数据：${JSON.stringify(selected)}。请记录选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
+  const hotel = selectedContext('已选择酒店完整数据：')
+  const hotelSummary = hotel ? `已选酒店：${hotel.title}，${hotel.location}，${hotel.checkin_date}至${hotel.checkout_date}，${hotel.rooms}间房，总价¥${hotel.total_price_yuan}。` : ''
+  input.value = `我已选择门票：${productNames}。${hotelSummary}请基于以上已选交通、酒店和门票方案生成完整行程草案。`
+  const context = `行程ID：${selected[0].trip_id}。已选择门票完整数据：${JSON.stringify(selected)}。${hotel ? `已选择酒店完整数据：${JSON.stringify(hotel)}。` : ''}请记录全部选择，并根据已确认信息继续生成行程草案；缺少必要信息时一次只追问一个。`
   await nextTick()
   const succeeded = await send(context)
   if (!succeeded) msg.ticketSelectionConfirmed = false

@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+import httpx
 from openai import OpenAI
 
 from app.config import settings
@@ -11,5 +12,6 @@ def get_client() -> OpenAI:
     return OpenAI(
         api_key=settings.deepseek_api_key,
         base_url=settings.deepseek_base_url,
+        http_client=httpx.Client(trust_env=False),
         timeout=60.0,
     )

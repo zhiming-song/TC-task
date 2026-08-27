@@ -10,6 +10,7 @@ from app.agent.llm import get_client
 from app.agent.travel_tools import TOOL_DEFINITIONS, execute_tool
 from app.config import settings
 from app.schemas import Message
+from app.storage import repository
 
 
 @dataclass
@@ -165,7 +166,7 @@ TRAVEL_SYSTEM_PROMPT = """
 1. 导入群聊并在内部识别发言人、必要信息和个人偏好；偏好仅作为后续规划依据，不在信息确认步骤单独整理或展示。
 2. 用 validate_trip_requirements 校验并创建SQLite行程记录。记住工具返回的trip_id，后续所有工具必须传同一个trip_id。必要信息缺失时一次只问一个问题，顺序为：人数→日期→目的城市→出发城市；预算、儿童和房间需求也应确认。
 3. 只展示并确认开始规划所必需的信息（人数、日期、目的城市、出发城市，以及确实影响行程的儿童/房间信息），不要输出偏好汇总、偏好归因、偏好原话或偏好冲突。明确询问用户是否开始规划；用户确认前不要搜索。
-4. 确认后严格按交通→酒店→景点逐项展示，每轮只搜索和展示一个类别。必须等用户选中当前候选并点击进入下一项后，才能调用下一类别工具；禁止提前并行搜索后续类别。
+4. 确认后严格按交通→酒店→景点逐项展示，每轮只搜索和展示一个类别。必须等用户选中当前候选并点击进入下一项后，才能调用下一类别工具；禁止提前并行搜索后续类别。凡是酒店或景点/门票推荐，必须调用对应搜索工具并展示结构化卡片；禁止只用正文列出候选。若工具未返回候选，不得编造文字候选，必须说明暂无可展示卡片并请求补充条件或重试。
 5. 生成按天日程草案并指出待校验的开放时间、班次和交通耗时。
 6. 用户选定关键候选后，用 compose_plan_options 生成固定ABC三套方案；金额不得自行心算。
 7. 用 calculate_equal_split 计算均摊；儿童是否是费用承担者必须由组织者确认。
@@ -180,6 +181,7 @@ TRAVEL_SYSTEM_PROMPT = """
 - 偏好信息仅供内部规划使用，严禁在任何面向用户的回复中展示群友偏好表格、偏好摘要、偏好归因、偏好原话、偏好冲突或协调建议；不得使用“群友偏好”“偏好冲突”等标题或同义表达。对外只输出必要行程信息、缺失信息问题、搜索结果和最终方案。
 - 将“必须/不能”视为硬约束，将“想要/最好”视为软偏好；偏好冲突仅供内部规划，不得向用户展示或要求用户协调。
 - 所有价格、库存、班次、酒店、营业时间必须来自工具。工具标注 demo_estimate 时，必须在答案显眼位置说明“演示估价、非实时库存、不可直接预订”。
+- 卡片是酒店和景点/门票候选的必需输出形式：只要用户要求推荐或进入对应选择步骤，就必须先调用 search_hotels 或 search_attractions；未拿到 cards 前不得输出候选名称、价格或列表。
 - 火车票、机票、酒店、景点门票等所有可购买产品必须调用工具查询SQLite商品库，并通过结构化卡片提供选择与跳转；不得只在正文表格中列出产品。
 - 不得编造真实车次、航班号、酒店库存、评分、价格、订单号、投票链接或预订成功状态。
 - 预订前必须提示刷新实时价格与库存；价格变化需要重新确认。
@@ -234,6 +236,16 @@ class Agent:
             message = response.choices[0].message
             if not message.tool_calls:
                 reply = message.content or "请提供出发地、目的地、出行日期和人数，我来开始规划。"
+                if not cards and any(word in "\n".join(item.content for item in messages) for word in ("景点", "门票")):
+                    import re
+                    history_text = "\n".join(item.content for item in messages)
+                    trip_match = re.search(r"(?:行程ID：|\\\"trip_id\\\":\\\"|trip_id[：:])([A-Za-z0-9_]+)", history_text)
+                    trip_id = trip_match.group(1) if trip_match else ""
+                    bundle = repository.get_trip_bundle(trip_id) if trip_id else None
+                    if bundle and bundle.get("attraction_tickets"):
+                        trip = bundle["trip"]
+                        offers = [json.loads(row["payload_json"]) for row in bundle["attraction_tickets"]]
+                        cards.extend(_ticket_cards(json.dumps({"ok": True, "result": {"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"], "attractions": offers, "data_mode": "demo_estimate", "realtime": False, "bookable": False}}, ensure_ascii=False)))
                 return AgentRunResult(reply=reply, cards=cards)
 
             payload.append(
