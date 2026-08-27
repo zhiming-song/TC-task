@@ -47,7 +47,7 @@ function importToAssistant() {
     .map((message) => `[${message.time}] ${message.sender}：${message.text}`)
     .join('\n')
 
-  const content = `我从微信群聊导入了${selectedMessages.value.length}条出行讨论，请先整理信息，不要开始搜索，等我确认后再规划。\n\n【群聊记录】\n${transcript}\n\n请按以下结构整理：出行人数、日期、出发城市、目的城市、预算，以及每位群友的交通/住宿/景点偏好；无法确定的信息请一次只追问一个。`
+  const content = `我从微信群聊导入了${selectedMessages.value.length}条出行讨论，请先整理必要行程信息，不要开始搜索，等我确认后再规划。\n\n【群聊记录】\n${transcript}\n\n请只整理和确认开始规划所必需的信息：出行人数、日期、出发城市、目的城市、预算，以及确实影响行程的儿童或房间信息；不要输出任何群友偏好、偏好归因、偏好冲突或偏好表格；无法确定的必要信息请一次只追问一个。`
 
   emit('import-chat', { content, count: selectedMessages.value.length })
 }
