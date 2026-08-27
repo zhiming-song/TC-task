@@ -1,6 +1,5 @@
 """程星AI行程规划工具。
 
-当前没有接入同程真实库存接口，因此搜索类工具使用明确标注的演示估价。
 所有金额都先转换为“分”计算，避免浮点误差。
 """
 
@@ -472,7 +471,7 @@ def compose_plan_options(args: dict[str, Any]) -> dict[str, Any]:
         "travelers": travelers,
         "payer_count": payer_count,
         "plans": plans,
-        "pricing_warning": "如输入来自演示搜索，则全部价格仅为演示估价；预订前必须刷新实时价格与库存。",
+        "pricing_warning": "\u9884\u8ba2\u524d\u5fc5\u987b\u5237\u65b0\u5b9e\u65f6\u4ef7\u683c\u4e0e\u5e93\u5b58\u3002",
     }
     response["persistence"] = {
         "stored": True,

@@ -182,6 +182,20 @@ function ticketCards(msg) {
   return msg.cards?.filter((card) => card.type === 'ticket_offer') || []
 }
 
+function getRecommendedCard(cards) {
+  if (!cards?.length) return null
+  return cards.reduce((best, card) => {
+    const score = (card.rating || 0) * 10 - (card.unit_price_yuan || 0) / 100
+    const bestScore = best ? (best.rating || 0) * 10 - (best.unit_price_yuan || 0) / 100 : -Infinity
+    return score > bestScore ? card : best
+  }, null)
+}
+
+function isRecommendedCard(cards, card) {
+  const recommended = getRecommendedCard(cards)
+  return recommended?.id === card.id
+}
+
 function canShowTickets(msg, index) {
   if (!ticketCards(msg).length) return false
   return messages.value.slice(0, index).some((item) => item.hotelSelectionConfirmed)
@@ -421,6 +435,7 @@ onMounted(async () => {
               :key="card.id"
               :card="card"
               :selected="msg.selectedCardId === card.id"
+              :recommended="isRecommendedCard(transportCards(msg), card)"
               @select="selectTransport(msg, card)"
             />
           </div>
@@ -450,6 +465,7 @@ onMounted(async () => {
               :key="card.id"
               :card="card"
               :selected="msg.selectedHotelId === card.id"
+              :recommended="isRecommendedCard(hotelCards(msg), card)"
               @select="selectHotel(msg, card)"
             />
           </div>
@@ -479,6 +495,7 @@ onMounted(async () => {
               :key="card.id"
               :card="card"
               :selected="msg.selectedTicketIds?.includes(card.id)"
+              :recommended="isRecommendedCard(ticketCards(msg), card)"
               @select="selectTicket(msg, card)"
             />
           </div>

@@ -2,19 +2,21 @@
 const props = defineProps({
   card: { type: Object, required: true },
   selected: { type: Boolean, default: false },
+  recommended: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['select'])
 </script>
 
 <template>
-  <article class="ticket-card" :class="{ selected }">
+  <article class="ticket-card" :class="{ selected, recommended }">
     <div class="ticket-head">
       <span class="ticket-icon">🎫</span>
       <div>
         <strong>{{ card.title }}</strong>
         <span>{{ card.destination }} · {{ card.category }}</span>
       </div>
+      <span v-if="recommended" class="recommended-badge">★ 推荐</span>
     </div>
 
     <div class="ticket-info">
@@ -55,12 +57,31 @@ const emit = defineEmits(['select'])
   box-shadow: 0 0 0 2px rgba(39, 166, 90, 0.13), 0 8px 22px rgba(38, 56, 92, 0.09);
 }
 
+.ticket-card.selected {
+  border-color: #27a65a;
+  box-shadow: 0 0 0 2px rgba(39, 166, 90, 0.13), 0 8px 22px rgba(38, 56, 92, 0.09);
+}
+
+.ticket-card.recommended {
+  border-color: #f0a020;
+  box-shadow: 0 0 0 2px rgba(240, 160, 32, 0.15), 0 8px 22px rgba(38, 56, 92, 0.09);
+}
+
 .ticket-head {
   padding: 11px 13px;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
+}
+
+.recommended-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #f0a020, #f5c842);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .ticket-icon {

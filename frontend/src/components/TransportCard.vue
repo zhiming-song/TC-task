@@ -10,6 +10,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  recommended: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['select'])
@@ -25,7 +29,7 @@ const durationText = computed(() => {
 </script>
 
 <template>
-  <article class="transport-card" :class="[card.transport_type, { selected }]">
+  <article class="transport-card" :class="[card.transport_type, { selected, recommended }]">
     <div class="card-topline">
       <div class="transport-name">
         <span class="transport-icon">{{ isTrain ? '🚄' : '✈️' }}</span>
@@ -34,6 +38,7 @@ const durationText = computed(() => {
           <span>{{ card.title }} · {{ card.service_label }}</span>
         </div>
       </div>
+      <span v-if="recommended" class="recommended-badge">★ 推荐</span>
     </div>
 
     <div class="route-line">
@@ -109,6 +114,20 @@ const durationText = computed(() => {
 .transport-card.selected {
   border-color: #27a65a;
   box-shadow: 0 0 0 2px rgba(39, 166, 90, 0.13), 0 8px 22px rgba(38, 56, 92, 0.09);
+}
+
+.transport-card.recommended {
+  border-color: #f0a020;
+  box-shadow: 0 0 0 2px rgba(240, 160, 32, 0.15), 0 8px 22px rgba(38, 56, 92, 0.09);
+}
+
+.recommended-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #f0a020, #f5c842);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .card-topline {
