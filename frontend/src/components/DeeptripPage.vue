@@ -12,7 +12,11 @@ defineProps({
   },
 })
 
-const emit = defineEmits(['back'])
+const emit = defineEmits(['back', 'open-summary'])
+
+function openSummary(sections, info) {
+  emit('open-summary', sections, info)
+}
 </script>
 
 <template>
@@ -28,6 +32,7 @@ const emit = defineEmits(['back'])
       :initial-context="initialContext"
       variant="deeptrip"
       welcome-text="哈喽~我是DeepTrip 行程规划小能手！可以帮你规划行程、找酒店、订机票火车票！快说说你想去哪儿，有啥要求？我来安排！"
+      @open-summary="openSummary"
     />
   </section>
 </template>

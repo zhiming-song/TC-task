@@ -20,6 +20,7 @@ const summaryTripInfo = ref({
   groupName: '国庆上海冲冲冲',
 })
 const showOrderButton = ref(false)
+const summaryReturnScreen = ref('assistant')
 
 function openAssistant(payload) {
   importedMessage.value = payload.content
@@ -36,17 +37,18 @@ function backToGroup() {
   showOrderButton.value = false
 }
 
-function openSummary(sections, info) {
+function openSummary(sections, info, returnScreen = 'assistant') {
   summarySections.value = sections
   if (info) {
     summaryTripInfo.value = { ...summaryTripInfo.value, ...info }
   }
+  summaryReturnScreen.value = returnScreen
   screen.value = 'summary'
 }
 
 function backToAssistant() {
-  screen.value = 'assistant'
-  showOrderButton.value = true
+  screen.value = summaryReturnScreen.value
+  showOrderButton.value = summaryReturnScreen.value === 'assistant'
 }
 
 onMounted(async () => {
@@ -64,9 +66,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <GroupChatImport v-if="screen === 'group'" class="group-shell" @import-chat="openAssistant" />
+  <GroupChatImport
+    v-show="screen === 'group'"
+    class="group-shell"
+    @import-chat="openAssistant"
+    @open-summary="(sections, info) => openSummary(sections, info, 'group')"
+  />
 
-  <div v-else class="shell" :class="{ 'summary-shell': screen === 'summary' }">
+  <div v-if="screen !== 'group'" class="shell" :class="{ 'summary-shell': screen === 'summary' }">
     <header v-if="screen === 'assistant'" class="header">
       <button class="back-button" aria-label="返回群聊" @click="backToGroup">‹</button>
       <div>

@@ -3,7 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import WeChatForwardList from './WeChatForwardList.vue'
 import DeeptripPage from './DeeptripPage.vue'
 
-const emit = defineEmits(['import-chat'])
+const emit = defineEmits(['import-chat', 'open-summary'])
 
 const view = ref('chat')
 const draft = ref('')
@@ -62,6 +62,10 @@ function importToAssistant() {
     context: importedInstructions,
     count: selectedMessages.value.length,
   })
+}
+
+function openSummary(sections, info) {
+  emit('open-summary', sections, info)
 }
 
 async function sendGroupMessage() {
@@ -195,7 +199,13 @@ function continueToDeeptrip() {
     </template>
 
     <WeChatForwardList v-else-if="view === 'list'" @back="view = 'chat'" @forward-app="openForwardToast" />
-    <DeeptripPage v-else :initial-message="importedContent" :initial-context="importedInstructions" @back="view = 'list'" />
+    <DeeptripPage
+      v-else
+      :initial-message="importedContent"
+      :initial-context="importedInstructions"
+      @back="view = 'list'"
+      @open-summary="openSummary"
+    />
 
     <transition name="toast-fade">
       <div v-if="showForwardToast" class="toast-mask" @click.self="closeForwardToast">
