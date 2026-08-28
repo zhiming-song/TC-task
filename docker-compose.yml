@@ -13,7 +13,7 @@ services:
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       SQLITE_PATH: /app/data/travel_agent.db
-      CORS_ORIGINS: http://localhost,http://127.0.0.1
+      CORS_ORIGINS: https://www.tankpizza.cn,https://tankpizza.cn,http://localhost:5173,http://localhost,http://127.0.0.1
       TZ: Asia/Shanghai
     expose:
       - "8000"
@@ -26,15 +26,15 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - gateway
+      - internal
 
   tc-agent-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_BASE_PATH: /tc/
-        VITE_API_BASE_URL: /tc/api
+        VITE_BASE_PATH: /
+        VITE_API_BASE_URL: /api
     container_name: tc-agent-frontend
     restart: unless-stopped
     depends_on:
@@ -43,6 +43,29 @@ services:
     expose:
       - "80"
     networks:
+      - internal
+      - gateway
+
+  tc-agent-gateway:
+    image: nginx:1.27-alpine
+    container_name: tc-agent-gateway
+    restart: unless-stopped
+    depends_on:
+      tc-agent-frontend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/tankpizza-gateway.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${LETSENCRYPT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
       - gateway
 
 volumes:
@@ -50,6 +73,9 @@ volumes:
     name: tc-agent-sqlite-data
 
 networks:
+  # 站内互访（前端 -> 后端 /api 反代），不接入外层网关
+  internal:
+    name: tc-agent-internal
+  # 网关与前端之间的回源网络，后端不接入，减少暴露面
   gateway:
-    external: true
-    name: gateway
+    name: tc-agent-gateway
