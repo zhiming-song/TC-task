@@ -1,7 +1,10 @@
 import logging
+import os
+import random
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.config import settings
@@ -19,6 +22,15 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+# 挂载静态图片目录
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+JIUDIAN_DIR = os.path.join(BASE_DIR, "..", "jiudian")
+JINGDIAN_DIR = os.path.join(BASE_DIR, "..", "jingdian")
+os.makedirs(JIUDIAN_DIR, exist_ok=True)
+os.makedirs(JINGDIAN_DIR, exist_ok=True)
+app.mount("/images/jiudian", StaticFiles(directory=JIUDIAN_DIR), name="jiudian")
+app.mount("/images/jingdian", StaticFiles(directory=JINGDIAN_DIR), name="jingdian")
 
 
 @app.get("/")

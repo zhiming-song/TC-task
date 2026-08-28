@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import random
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date
@@ -11,6 +13,19 @@ from app.agent.travel_tools import TOOL_DEFINITIONS, execute_tool
 from app.config import settings
 from app.schemas import Message
 from app.storage import repository
+
+# 图片目录
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _random_image_url(folder: str) -> str:
+    """从指定文件夹随机获取一张图片的URL"""
+    folder_path = os.path.join(BASE_DIR, "..", folder)
+    if os.path.isdir(folder_path):
+        files = [f for f in os.listdir(folder_path) if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))]
+        if files:
+            return f"/images/{folder}/{random.choice(files)}"
+    return ""
 
 
 @dataclass
@@ -94,8 +109,26 @@ def _hotel_cards(tool_result: str) -> list[dict[str, Any]]:
             if offers and len(selected_offers) < 6:
                 selected_offers.append(offers.pop(0))
 
-    return [
-        {
+    # 生成推荐理由模板
+    def _make_hotel_reason(offer: dict, idx: int, total: int) -> tuple[bool, str]:
+        if idx == 0:
+            reasons = []
+            if offer.get("distance_km"):
+                reasons.append(f"距景区{offer['distance_km']}公里")
+            if offer.get("rating"):
+                reasons.append(f"评分{offer['rating']}分")
+            if offer.get("estimated_total_yuan"):
+                reasons.append(f"总价¥{offer['estimated_total_yuan']}")
+            if offer.get("remaining_inventory", 999) < 5:
+                reasons.append("库存紧张")
+            reason = "、".join(reasons) if reasons else "综合评估最优"
+            return True, f"综合考虑{'；'.join(reasons)}，更推荐【{offer.get('name', '该酒店')}】"
+        return False, ""
+
+    cards = []
+    for idx, offer in enumerate(selected_offers):
+        is_rec, reason = _make_hotel_reason(offer, idx, len(selected_offers))
+        card = {
             "type": "hotel_offer",
             "id": f"{result.get('trip_id', 'trip')}:{offer.get('id')}",
             "trip_id": result.get("trip_id"),
@@ -124,12 +157,14 @@ def _hotel_cards(tool_result: str) -> list[dict[str, Any]]:
             "realtime": result.get("realtime", False),
             "bookable": result.get("bookable", False),
             "booking_url": offer.get("booking_url") or settings.tongcheng_hotel_booking_url,
-            "image_url": offer.get("image_url") or "",
+            "image_url": offer.get("image_url") or _random_image_url("jiudian"),
             "cta_label": "去同程查询" if not result.get("bookable") else "去预订",
             "notice": result.get("notice"),
+            "is_recommended": is_rec,
+            "recommended_reason": reason,
         }
-        for offer in selected_offers
-    ]
+        cards.append(card)
+    return cards
 
 
 def _ticket_cards(tool_result: str) -> list[dict[str, Any]]:
@@ -142,8 +177,26 @@ def _ticket_cards(tool_result: str) -> list[dict[str, Any]]:
     except (json.JSONDecodeError, AttributeError):
         return []
 
-    return [
-        {
+    # 生成推荐理由模板
+    def _make_ticket_reason(offer: dict, idx: int, total: int) -> tuple[bool, str]:
+        if idx == 0:
+            reasons = []
+            if offer.get("suggested_duration_hours"):
+                reasons.append(f"游玩{offer['suggested_duration_hours']}小时")
+            if offer.get("estimated_unit_ticket_yuan"):
+                reasons.append(f"门票¥{offer['estimated_unit_ticket_yuan']}")
+            if offer.get("category"):
+                reasons.append(offer["category"])
+            if offer.get("remaining_inventory", 999) < 5:
+                reasons.append("库存紧张")
+            reason = "、".join(reasons) if reasons else "综合评估最优"
+            return True, f"综合考虑{'；'.join(reasons)}，更推荐【{offer.get('name', '该景点')}】"
+        return False, ""
+
+    cards = []
+    for idx, offer in enumerate(result["attractions"][:8]):
+        is_rec, reason = _make_ticket_reason(offer, idx, 8)
+        card = {
             "type": "ticket_offer",
             "id": f"{result.get('trip_id', 'trip')}:{offer.get('id')}",
             "trip_id": result.get("trip_id"),
@@ -158,16 +211,18 @@ def _ticket_cards(tool_result: str) -> list[dict[str, Any]]:
             "inventory_status": offer.get("inventory_status"),
             "duration_hours": offer.get("suggested_duration_hours"),
             "opening_hours": offer.get("opening_hours"),
-            "image_url": offer.get("image_url") or "",
+            "image_url": offer.get("image_url") or _random_image_url("jingdian"),
             "data_mode": result.get("data_mode"),
             "realtime": result.get("realtime", False),
             "bookable": result.get("bookable", False),
             "booking_url": offer.get("booking_url") or settings.tongcheng_ticket_booking_url,
             "cta_label": "去同程查询" if not result.get("bookable") else "去预订",
             "notice": result.get("notice"),
+            "is_recommended": is_rec,
+            "recommended_reason": reason,
         }
-        for offer in result["attractions"][:8]
-    ]
+        cards.append(card)
+    return cards
 
 
 TRAVEL_SYSTEM_PROMPT = """
