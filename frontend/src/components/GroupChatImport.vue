@@ -1,9 +1,14 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
+import WeChatForwardList from './WeChatForwardList.vue'
+import DeeptripPage from './DeeptripPage.vue'
 
 const emit = defineEmits(['import-chat'])
+
+const view = ref('chat')
 const draft = ref('')
 const messageListEl = ref(null)
+
 const members = [
   { name: '林一', avatar: '林', color: '#ff9a45' },
   { name: 'Evan', avatar: 'E', color: '#5b8ff9' },
@@ -40,16 +45,23 @@ function toggleAll() {
   })
 }
 
-function importToAssistant() {
-  if (!selectedMessages.value.length) return
-
+const importedContent = computed(() => {
+  if (!selectedMessages.value.length) return ''
   const transcript = selectedMessages.value
     .map((message) => `[${message.time}] ${message.sender}：${message.text}`)
     .join('\n')
+  return `我从微信群聊导入了${selectedMessages.value.length}条出行讨论\n\n【群聊记录】\n${transcript}`
+})
 
-  const content = `我从微信群聊导入了${selectedMessages.value.length}条出行讨论，请先整理必要行程信息，不要开始搜索，等我确认后再规划。\n\n【群聊记录】\n${transcript}\n\n请只整理和确认开始规划所必需的信息：出行人数、日期、出发城市、目的城市、预算，以及确实影响行程的儿童或房间信息；不要输出任何群友偏好、偏好归因、偏好冲突或偏好表格；无法确定的必要信息请一次只追问一个。`
+const importedInstructions = `请先整理必要行程信息，不要开始搜索，等我确认后再规划。请将开始规划所必需的信息整理为 Markdown 表格（列为：信息项 | 内容）：出行人数、日期、出发城市、目的城市、预算，以及确实影响行程的儿童或房间信息；不要输出任何群友偏好、偏好归因或偏好冲突；不要向用户提问；表格之后以固定句子「请确认以上信息，确认后我将开始推荐交通方案」结尾。`
 
-  emit('import-chat', { content, count: selectedMessages.value.length })
+function importToAssistant() {
+  if (!selectedMessages.value.length) return
+  emit('import-chat', {
+    content: importedContent.value,
+    context: importedInstructions,
+    count: selectedMessages.value.length,
+  })
 }
 
 async function sendGroupMessage() {
@@ -77,93 +89,125 @@ function onComposerKeydown(event) {
     sendGroupMessage()
   }
 }
+
+const showForwardToast = ref(false)
+
+function openForwardToast() {
+  showForwardToast.value = true
+}
+
+function closeForwardToast() {
+  showForwardToast.value = false
+}
+
+function continueToDeeptrip() {
+  showForwardToast.value = false
+  view.value = 'deeptrip'
+}
 </script>
 
 <template>
   <section class="wechat-page">
-    <header class="wx-header">
-      <button class="nav-icon" aria-label="返回">‹</button>
-      <div class="group-title">
-        <strong>国庆上海冲冲冲（5）</strong>
-        <span>选择要导入的聊天记录</span>
-      </div>
-      <button class="nav-icon more" aria-label="更多">•••</button>
-    </header>
-
-    <div class="import-tip">
-      <span class="ai-mark">✦</span>
-      <div>
-        <strong>程星AI 可以帮大家整理方案</strong>
-        <span>勾选旅行相关消息，一键提取每个人的意见</span>
-      </div>
-    </div>
-
-    <main ref="messageListEl" class="message-list">
-      <div class="date-separator">8月26日 晚上</div>
-
-      <article
-        v-for="message in messages"
-        :key="message.id"
-        class="message-row"
-        :class="{ mine: message.sender === activeMemberName, selected: message.selected }"
-      >
-        <button
-          class="select-dot"
-          :class="{ checked: message.selected }"
-          :aria-label="message.selected ? '取消选择' : '选择消息'"
-          @click="toggleMessage(message.id)"
-        >
-          <span>✓</span>
-        </button>
-
-        <div class="avatar" :style="{ background: message.color }">{{ message.avatar }}</div>
-
-        <div class="message-content" @click="toggleMessage(message.id)">
-          <span class="sender">{{ message.sender }}</span>
-          <div class="message-bubble">{{ message.text }}</div>
-          <small>{{ message.time }}</small>
+    <template v-if="view === 'chat'">
+      <header class="wx-header">
+        <button class="nav-icon" aria-label="返回">‹</button>
+        <div class="group-title">
+          <strong>国庆上海冲冲冲（5）</strong>
+          <span>选择要导入的聊天记录</span>
         </div>
-      </article>
-    </main>
+        <button class="nav-icon more" aria-label="更多">•••</button>
+      </header>
 
-    <footer class="import-footer">
-      <div class="selection-summary">
-        <div class="selection-left">
-          <button class="select-all" @click="toggleAll">
-            <span class="mini-check" :class="{ checked: allSelected }">✓</span>
-            {{ allSelected ? '取消全选' : '全选' }}
+      <div class="import-tip">
+        <span class="ai-mark">✦</span>
+        <div>
+          <strong>程星AI 可以帮大家整理方案</strong>
+          <span>勾选旅行相关消息，一键提取每个人的意见</span>
+        </div>
+      </div>
+
+      <main ref="messageListEl" class="message-list">
+        <div class="date-separator">8月26日 晚上</div>
+
+        <article
+          v-for="message in messages"
+          :key="message.id"
+          class="message-row"
+          :class="{ mine: message.sender === activeMemberName, selected: message.selected }"
+        >
+          <button
+            class="select-dot"
+            :class="{ checked: message.selected }"
+            :aria-label="message.selected ? '取消选择' : '选择消息'"
+            @click="toggleMessage(message.id)"
+          >
+            <span>✓</span>
           </button>
-          <span>已选 {{ selectedMessages.length }} 条</span>
+
+          <div class="avatar" :style="{ background: message.color }">{{ message.avatar }}</div>
+
+          <div class="message-content" @click="toggleMessage(message.id)">
+            <span class="sender">{{ message.sender }}</span>
+            <div class="message-bubble">{{ message.text }}</div>
+            <small>{{ message.time }}</small>
+          </div>
+        </article>
+      </main>
+
+      <footer class="import-footer">
+        <nav class="wechat-actions" aria-label="消息操作">
+          <button class="action-item" type="button" @click="view = 'list'">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15V4M8 8l4-4 4 4" />
+              <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+            </svg>
+            <span>转发</span>
+          </button>
+          <button class="action-item" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+            </svg>
+            <span>复制</span>
+          </button>
+          <button class="action-item" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3.5l2.7 5.5 6 .9-4.4 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.3 9.9l6-.9z" />
+            </svg>
+            <span>收藏</span>
+          </button>
+          <button class="action-item" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M9.5 7V4.5A1.5 1.5 0 0 1 11 3h2a1.5 1.5 0 0 1 1.5 1.5V7M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12M10 11v6M14 11v6" />
+            </svg>
+            <span>删除</span>
+          </button>
+          <button class="action-item" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="fill-icon">
+              <circle cx="5.5" cy="12" r="1.3" />
+              <circle cx="12" cy="12" r="1.3" />
+              <circle cx="18.5" cy="12" r="1.3" />
+            </svg>
+            <span>更多</span>
+          </button>
+        </nav>
+      </footer>
+    </template>
+
+    <WeChatForwardList v-else-if="view === 'list'" @back="view = 'chat'" @forward-app="openForwardToast" />
+    <DeeptripPage v-else :initial-message="importedContent" :initial-context="importedInstructions" @back="view = 'list'" />
+
+    <transition name="toast-fade">
+      <div v-if="showForwardToast" class="toast-mask" @click.self="closeForwardToast">
+        <div class="toast-card">
+          <strong class="toast-title">即将离开微信，打开"程星AI"</strong>
+          <div class="toast-actions">
+            <button class="toast-btn cancel" @click="closeForwardToast">取消</button>
+            <button class="toast-btn confirm" @click="continueToDeeptrip">继续</button>
+          </div>
         </div>
-        <button class="compact-import" :disabled="!selectedMessages.length" @click="importToAssistant">
-          <span class="spark">✦</span>
-          导入AI
-        </button>
       </div>
-      <div class="role-switcher" aria-label="选择当前聊天角色">
-        <span>我扮演</span>
-        <button
-          v-for="member in members"
-          :key="member.name"
-          type="button"
-          class="role-chip"
-          :class="{ active: activeMemberName === member.name }"
-          @click="activeMemberName = member.name"
-        >
-          <i :style="{ background: member.color }">{{ member.avatar }}</i>
-          {{ member.name }}
-        </button>
-      </div>
-      <div class="group-composer">
-        <textarea
-          v-model="draft"
-          rows="1"
-          placeholder="发消息…"
-          @keydown="onComposerKeydown"
-        ></textarea>
-        <button class="send-button" :disabled="!draft.trim()" @click="sendGroupMessage">发送</button>
-      </div>
-    </footer>
+    </transition>
   </section>
 </template>
 
@@ -173,6 +217,7 @@ button {
 }
 
 .wechat-page {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -388,10 +433,12 @@ button {
   border-top: 1px solid rgba(0, 0, 0, 0.07);
   background: rgba(250, 250, 250, 0.97);
   backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .selection-summary {
-  margin-bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -451,7 +498,6 @@ button {
 }
 
 .role-switcher {
-  margin-bottom: 8px;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -544,6 +590,112 @@ button {
 .send-button:disabled {
   opacity: 0.42;
   cursor: not-allowed;
+}
+
+.wechat-actions {
+  padding: 9px 16px;
+  display: flex;
+  gap: 20px;
+  border-radius: 6px;
+  background: rgba(75, 75, 75, 0.96);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.action-item {
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #efefef;
+  background: transparent;
+  cursor: pointer;
+}
+
+.action-item svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.action-item svg.fill-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
+.action-item span {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.action-item:active {
+  opacity: 0.6;
+}
+
+.toast-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.toast-card {
+  min-width: 200px;
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.18);
+}
+
+.toast-title {
+  margin-bottom: 14px;
+  color: #191919;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.toast-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.toast-btn {
+  min-width: 96px;
+  padding: 9px 0;
+  border: 0;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.toast-btn.cancel {
+  color: #666;
+  background: #f2f2f2;
+}
+
+.toast-btn.confirm {
+  color: #576b95;
+  background: #e8efff;
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
 }
 
 @media (max-width: 768px) {

@@ -1,8 +1,8 @@
 import json
 import logging
+import re
 import threading
 import uuid
-import re
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Iterator
 

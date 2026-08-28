@@ -198,6 +198,7 @@ class TravelRepository:
                     remaining_inventory INTEGER NOT NULL,
                     booking_url TEXT NOT NULL,
                     tags_json TEXT NOT NULL DEFAULT '[]',
+                    image_url TEXT NOT NULL DEFAULT '',
                     updated_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_product_hotel_city
@@ -215,12 +216,20 @@ class TravelRepository:
                     opening_hours TEXT NOT NULL,
                     booking_url TEXT NOT NULL,
                     tags_json TEXT NOT NULL DEFAULT '[]',
+                    image_url TEXT NOT NULL DEFAULT '',
                     updated_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_product_ticket_city
                     ON product_ticket_inventory(city, attraction_name, unit_price_cents);
+
                 """
             )
+            for table in ("product_hotel_inventory", "product_ticket_inventory"):
+                columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+                if "image_url" not in columns:
+                    connection.execute(
+                        f"ALTER TABLE {table} ADD COLUMN image_url TEXT NOT NULL DEFAULT ''"
+                    )
             self._seed_product_catalog(connection)
 
     def _seed_product_catalog(self, connection: sqlite3.Connection) -> None:
@@ -297,55 +306,147 @@ class TravelRepository:
 
         hotel_rows = []
         ticket_rows = []
-        tiers = (
-            ("economic", "经济型", 28000, "标准间", "15-18m²", "1.2m双床", 2),
-            ("balanced", "舒适型", 52000, "高级大床房", "18-22m²", "1.5m大床", 2),
-            ("comfort", "品质型", 86000, "豪华套房", "25-30m²", "1.8m大床", 2),
-        )
+
         # 上海迪士尼区域酒店（特殊图片）
         disney_hotels = {
             "economic": ("唯季酒店", "tc_shanghai_disney_economic", 42000, 4.5, "经济型", "标准大床房", "20-25m²", "1.8m大床", 2),
             "balanced": ("万信酒店", "tc_shanghai_disney_balanced", 88000, 4.7, "舒适型", "高级大床房", "18-22m²", "1.5m大床", 2),
             "comfort": ("诺阁雅精选酒店", "tc_shanghai_disney_comfort", 128000, 4.9, "品质型", "豪华大床房", "16-18m²", "1.8m大床", 2),
         }
+
+        # 上海真实酒店数据
+        real_shanghai_hotels = (
+            ("tc_hotel_shanghai_jiquan_quanji", "全季酒店（上海中山公园江苏路店）", "中山公园",
+             "balanced", "4.5", 44300, 8,
+             _json(["江苏路站2/11号线换乘", "去迪士尼11号线直达约40分钟", "去外滩2号线约12分钟"]),
+             "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&q=60"),
+            ("tc_hotel_shanghai_hyatt_place_hongqiao", "上海虹桥商务区凯悦嘉轩酒店", "虹桥火车站",
+             "comfort", "4.6", 49300, 6,
+             _json(["步行10分钟进虹桥站", "外滩2号线直达约35分钟", "35平双床房"]),
+             "https://images.unsplash.com/photo-1590073242678-70ee3fc28e8e?w=400&q=60"),
+            ("tc_hotel_shanghai_cordis_hongqiao", "上海虹桥康得思酒店", "虹桥火车站",
+             "comfort", "4.8", 69900, 5,
+             _json(["地下连廊直通高铁站", "豪华型41平客房", "带泳池"]),
+             "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400&q=60"),
+        )
+
+        tiers = (
+            ("economic", "经济型", 28000, "标准间", "15-18m²", "1.2m双床", 2),
+            ("balanced", "舒适型", 52000, "高级大床房", "18-22m²", "1.5m大床", 2),
+            ("comfort", "品质型", 86000, "豪华套房", "25-30m²", "1.8m大床", 2),
+        )
+
         for city_index, (city, (areas, attractions)) in enumerate(cities.items()):
-            for area_index, area in enumerate(areas):
-                for tier_index, (tier, tier_name, base_price, room_type, room_size, bed_type, capacity) in enumerate(tiers):
-                    product_id = f"tc_hotel_{city}_{area}_{tier}".lower()
-                    price = base_price + ((city_index + 1) * 41 + area_index * 67 + tier_index * 29) % 12000
-                    original_price = int(price * 1.25)
-                    # 迪士尼区域有特殊数据
-                    if city == "上海" and area == "迪士尼":
-                        if tier in disney_hotels:
+            # 上海特殊处理：迪士尼区域 + 真实酒店数据
+            if city == "上海":
+                # 添加迪士尼区域特殊酒店
+                for area in ["外滩", "迪士尼", "虹桥火车站"]:
+                    for tier_index, (tier, tier_name, base_price, room_type, room_size, bed_type, capacity) in enumerate(tiers):
+                        # 迪士尼区域有特殊数据
+                        if area == "迪士尼" and tier in disney_hotels:
                             pname, product_id, price, rating, tier_name, room_type, room_size, bed_type, capacity = disney_hotels[tier]
                             original_price = int(price * 1.25)
-                    distance_km = 1.5 + (area_index * 1.2 + tier_index * 0.5)
+                            distance_km = 1.5
+                            hotel_rows.append(
+                                (
+                                    product_id,
+                                    city,
+                                    pname,
+                                    area,
+                                    tier,
+                                    f"{rating}",
+                                    price,
+                                    4 + tier_index * 2,
+                                    settings.tongcheng_hotel_booking_url,
+                                    _json({
+                                        "tags": [area, tier_name, "同程精选"],
+                                        "original_price_cents": original_price,
+                                        "room_type": room_type,
+                                        "room_size": room_size,
+                                        "bed_type": bed_type,
+                                        "capacity": capacity,
+                                        "distance_km": distance_km,
+                                        "cancel_policy": "入住前24:00可免费取消",
+                                        "services": ["立即确认", "免押金"] + (["含早餐"] if tier == "economic" else []),
+                                        "image_count": 4 + tier_index * 3,
+                                    }),
+                                    "",
+                                    timestamp,
+                                )
+                            )
+                        else:
+                            product_id = f"tc_hotel_{city}_{area}_{tier}".lower()
+                            price = base_price + ((city_index + 1) * 41 + tier_index * 29) % 12000
+                            original_price = int(price * 1.25)
+                            distance_km = 1.5 + tier_index * 0.5
+                            hotel_rows.append(
+                                (
+                                    product_id,
+                                    city,
+                                    f"{city}{area}{tier_name}酒店",
+                                    area,
+                                    tier,
+                                    f"{4.3 + tier_index * 0.2:.1f}",
+                                    price,
+                                    5 + tier_index % 12,
+                                    settings.tongcheng_hotel_booking_url,
+                                    _json({
+                                        "tags": [area, tier_name, "同程精选"],
+                                        "original_price_cents": original_price,
+                                        "room_type": room_type,
+                                        "room_size": room_size,
+                                        "bed_type": bed_type,
+                                        "capacity": capacity,
+                                        "distance_km": distance_km,
+                                        "cancel_policy": "入住前24:00可免费取消",
+                                        "services": ["立即确认", "免押金"] + (["含早餐"] if tier == "economic" else []),
+                                        "image_count": 4 + tier_index * 3,
+                                    }),
+                                    "",
+                                    timestamp,
+                                )
+                            )
+                # 添加上海真实酒店
+                for pid, name, location, tier, rating, price, inventory, tags, image_url in real_shanghai_hotels:
                     hotel_rows.append(
-                        (
-                            product_id,
-                            city,
-                            f"{city}{area}{tier_name}酒店" if city != "上海" or area != "迪士尼" or tier not in disney_hotels else product_id.split("_")[-2] if False else pname,
-                            area,
-                            tier,
-                            f"{4.3 + ((city_index + area_index + tier_index) % 6) / 10:.1f}",
-                            price,
-                            5 + (city_index * 3 + area_index * 2 + tier_index) % 12,
-                            settings.tongcheng_hotel_booking_url,
-                            _json({
-                                "tags": [area, tier_name, "同程精选"],
-                                "original_price_cents": original_price,
-                                "room_type": room_type,
-                                "room_size": room_size,
-                                "bed_type": bed_type,
-                                "capacity": capacity,
-                                "distance_km": distance_km,
-                                "cancel_policy": "入住前24:00可免费取消",
-                                "services": ["立即确认", "免押金"] + (["含早餐"] if tier == "economic" else []),
-                                "image_count": 4 + tier_index * 3,
-                            }),
-                            timestamp,
-                        )
+                        (pid, city, name, location, tier, rating, price, inventory,
+                         settings.tongcheng_hotel_booking_url, tags, image_url, timestamp)
                     )
+            else:
+                for area_index, area in enumerate(areas):
+                    for tier_index, (tier, tier_name, base_price, room_type, room_size, bed_type, capacity) in enumerate(tiers):
+                        product_id = f"tc_hotel_{city}_{area}_{tier}".lower()
+                        price = base_price + ((city_index + 1) * 41 + area_index * 67 + tier_index * 29) % 12000
+                        original_price = int(price * 1.25)
+                        distance_km = 1.5 + (area_index * 1.2 + tier_index * 0.5)
+                        hotel_rows.append(
+                            (
+                                product_id,
+                                city,
+                                f"{city}{area}{tier_name}酒店",
+                                area,
+                                tier,
+                                f"{4.3 + ((city_index + area_index + tier_index) % 6) / 10:.1f}",
+                                price,
+                                5 + (city_index * 3 + area_index * 2 + tier_index) % 12,
+                                settings.tongcheng_hotel_booking_url,
+                                _json({
+                                    "tags": [area, tier_name, "同程精选"],
+                                    "original_price_cents": original_price,
+                                    "room_type": room_type,
+                                    "room_size": room_size,
+                                    "bed_type": bed_type,
+                                    "capacity": capacity,
+                                    "distance_km": distance_km,
+                                    "cancel_policy": "入住前24:00可免费取消",
+                                    "services": ["立即确认", "免押金"] + (["含早餐"] if tier == "economic" else []),
+                                    "image_count": 4 + tier_index * 3,
+                                }),
+                                "",
+                                timestamp,
+                            )
+                        )
+
             for attraction_index, attraction in enumerate(attractions):
                 product_id = f"tc_ticket_{city}_{attraction_index + 1}".lower()
                 unit_price = 6000 + ((city_index + 2) * 71 + attraction_index * 97) % 38000
@@ -362,15 +463,17 @@ class TravelRepository:
                         "建议游玩前在同程确认开放时间",
                         settings.tongcheng_ticket_booking_url,
                         _json([attraction, "可退规则待确认", "同程精选"]),
+                        "",
                         timestamp,
                     )
                 )
+
         connection.executemany(
             """
             INSERT OR IGNORE INTO product_hotel_inventory (
                 product_id, city, product_name, location, tier, rating,
-                room_night_price_cents, remaining_inventory, booking_url, tags_json, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                room_night_price_cents, remaining_inventory, booking_url, tags_json, image_url, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             hotel_rows,
         )
@@ -378,8 +481,8 @@ class TravelRepository:
             """
             INSERT OR IGNORE INTO product_ticket_inventory (
                 product_id, city, product_name, attraction_name, category, unit_price_cents,
-                remaining_inventory, duration_hours, opening_hours, booking_url, tags_json, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                remaining_inventory, duration_hours, opening_hours, booking_url, tags_json, image_url, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             ticket_rows,
         )
@@ -528,6 +631,25 @@ class TravelRepository:
                     """
                 ).fetchone()[0],
             }
+
+    # 保留 mock_* 别名方法以兼容旧代码
+    def search_mock_transport(
+        self, origin: str, destination: str, travelers: int, limit: int = 8
+    ) -> list[dict[str, Any]]:
+        return self.search_product_transport(origin, destination, travelers, limit)
+
+    def search_mock_hotels(
+        self, city: str, rooms: int, locations: list[str] | None = None, limit: int = 12
+    ) -> list[dict[str, Any]]:
+        return self.search_product_hotels(city, rooms, locations, limit)
+
+    def search_mock_tickets(
+        self, city: str, travelers: int, attractions: list[str] | None = None, limit: int = 8
+    ) -> list[dict[str, Any]]:
+        return self.search_product_tickets(city, travelers, attractions, limit)
+
+    def mock_catalog_stats(self) -> dict[str, int]:
+        return self.product_catalog_stats()
 
     def save_transport(self, trip_id: str, response: dict[str, Any]) -> int:
         query = response["query"]

@@ -14,11 +14,22 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  index: {
+    type: Number,
+    default: 1,
+  },
+  reason: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['select'])
 
+const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
 const isTrain = computed(() => props.card.transport_type === 'train')
+const numberText = computed(() => CIRCLED[props.index - 1] || String(props.index))
+
 const durationText = computed(() => {
   const minutes = Number(props.card.duration_minutes || 0)
   if (!minutes) return '待查询'
@@ -26,20 +37,33 @@ const durationText = computed(() => {
   const rest = minutes % 60
   return `${hours}小时${rest ? `${rest}分` : ''}`
 })
+
+// 火车展示单人单程价，航班展示单人往返总价
+const priceText = computed(() => {
+  const unit = Number(props.card.unit_price_yuan || 0)
+  return isTrain.value ? `¥${unit}` : `¥${unit * 2}`
+})
+const priceLabel = computed(() => (isTrain.value ? '单人单程' : '往返总价'))
 </script>
 
 <template>
-  <article class="transport-card" :class="[card.transport_type, { selected, recommended }]">
-    <div class="card-topline">
-      <div class="transport-name">
-        <span class="transport-icon">{{ isTrain ? '🚄' : '✈️' }}</span>
-        <div>
-          <strong>{{ isTrain ? '火车票方案' : '机票方案' }}</strong>
-          <span>{{ card.title }} · {{ card.service_label }}</span>
+  <article
+    class="transport-card"
+    :class="[card.transport_type, { selected, recommended }]"
+    @click="emit('select')"
+  >
+    <header class="rec-head">
+        <span class="rec-num">{{ numberText }}</span>
+        <div class="transport-name">
+          <span class="transport-icon">{{ isTrain ? '🚄' : '✈️' }}</span>
+          <div>
+            <strong>{{ isTrain ? '火车票方案' : '机票方案' }}</strong>
+            <span>{{ card.title }} · {{ card.service_label }}</span>
+          </div>
         </div>
-      </div>
-      <span v-if="recommended" class="recommended-badge">★ 推荐</span>
-    </div>
+        <strong class="rec-reason">{{ reason }}</strong>
+        <span v-if="recommended" class="rec-best">AI推荐</span>
+      </header>
 
     <div class="route-line">
       <div>
@@ -73,15 +97,15 @@ const durationText = computed(() => {
         <strong>¥{{ card.total_price_yuan }}</strong>
       </div>
       <div class="price">
-        <span>单人单程估价</span>
-        <strong>¥{{ card.unit_price_yuan }}</strong>
+        <span>{{ priceLabel }}</span>
+        <strong>{{ priceText }}</strong>
       </div>
     </div>
 
     <div class="card-action">
       <span>{{ card.bookable ? '可携带当前条件进入预订' : '需在同程重新确认班次与价格' }}</span>
       <div class="action-buttons">
-        <button class="select-button" :class="{ active: selected }" type="button" @click="emit('select')">
+        <button class="select-button" :class="{ active: selected }" type="button" @click.stop="emit('select')">
           {{ selected ? '✓ 已选择' : '选择此方案' }}
         </button>
         <a :href="card.booking_url" target="_blank" rel="noopener noreferrer">
@@ -101,6 +125,7 @@ const durationText = computed(() => {
   color: #20232a;
   background: #fff;
   box-shadow: 0 6px 20px rgba(38, 56, 92, 0.07);
+  cursor: pointer;
 }
 
 .transport-card.train {
@@ -121,7 +146,8 @@ const durationText = computed(() => {
   box-shadow: 0 0 0 2px rgba(240, 160, 32, 0.15), 0 8px 22px rgba(38, 56, 92, 0.09);
 }
 
-.recommended-badge {
+.rec-best {
+  flex: 0 0 auto;
   padding: 4px 10px;
   border-radius: 12px;
   color: #fff;
@@ -130,17 +156,37 @@ const durationText = computed(() => {
   font-weight: 600;
 }
 
-.card-topline {
+.rec-head {
   padding: 12px 13px 9px;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
+  gap: 9px;
+}
+
+.rec-num {
+  flex: 0 0 auto;
+  color: #f05a29;
+  font-size: 15px;
+}
+
+.rec-reason {
+  flex: 1;
+  min-width: 0;
+  color: #8b93a3;
+  font-size: 10px;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .transport-name {
   display: flex;
   align-items: center;
   gap: 9px;
+  flex: 1;
+  min-width: 0;
 }
 
 .transport-icon {
@@ -161,6 +207,7 @@ const durationText = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
 }
 
 .transport-name strong {
@@ -170,19 +217,9 @@ const durationText = computed(() => {
 .transport-name div span {
   color: #8b93a3;
   font-size: 10px;
-}
-
-.mode-badge {
-  padding: 3px 7px;
-  border-radius: 10px;
-  color: #9a6700;
-  background: #fff5cc;
-  font-size: 10px;
-}
-
-.mode-badge.live {
-  color: #08783e;
-  background: #e4f8eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .route-line {
@@ -190,27 +227,6 @@ const durationText = computed(() => {
   display: grid;
   grid-template-columns: 1fr 74px 1fr;
   align-items: center;
-}
-
-.inventory-line {
-  padding: 0 13px 9px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #677184;
-  font-size: 10px;
-}
-
-.inventory-line span:last-child {
-  padding: 3px 7px;
-  border-radius: 10px;
-  color: #168444;
-  background: #eaf8ef;
-}
-
-.inventory-line span.limited {
-  color: #b96a00;
-  background: #fff3da;
 }
 
 .route-line > div:not(.route-arrow) {
@@ -256,6 +272,27 @@ const durationText = computed(() => {
   border-top: 1px solid #b8c2d3;
   border-right: 1px solid #b8c2d3;
   transform: rotate(45deg);
+}
+
+.inventory-line {
+  padding: 0 13px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #677184;
+  font-size: 10px;
+}
+
+.inventory-line span:last-child {
+  padding: 3px 7px;
+  border-radius: 10px;
+  color: #168444;
+  background: #eaf8ef;
+}
+
+.inventory-line span.limited {
+  color: #b96a00;
+  background: #fff3da;
 }
 
 .card-metrics {
@@ -358,6 +395,15 @@ const durationText = computed(() => {
 @media (max-width: 560px) {
   .card-action {
     align-items: center;
+  }
+
+  .rec-head {
+    flex-wrap: wrap;
+  }
+
+  .rec-reason {
+    flex-basis: 100%;
+    text-align: left;
   }
 }
 </style>

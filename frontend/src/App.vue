@@ -8,6 +8,7 @@ import { fetchHealth } from './api/agent'
 const status = ref({ online: false, model: '未连接', keyReady: false })
 const screen = ref('group')
 const importedMessage = ref('')
+const importedContext = ref('')
 const importedCount = ref(0)
 const summarySections = ref([])
 const summaryTripInfo = ref({
@@ -22,6 +23,7 @@ const showOrderButton = ref(false)
 
 function openAssistant(payload) {
   importedMessage.value = payload.content
+  importedContext.value = payload.context || ''
   importedCount.value = payload.count
   screen.value = 'assistant'
 }
@@ -29,6 +31,7 @@ function openAssistant(payload) {
 function backToGroup() {
   screen.value = 'group'
   importedMessage.value = ''
+  importedContext.value = ''
   importedCount.value = 0
   showOrderButton.value = false
 }
@@ -80,7 +83,7 @@ onMounted(async () => {
       后端未检测到 API Key，请在 agent-backend/.env 中配置 DEEPSEEK_API_KEY
     </p>
 
-    <ChatBox v-show="screen === 'assistant'" :initial-message="importedMessage" :show-order-button="showOrderButton" @open-summary="openSummary" @update-trip-info="(info) => summaryTripInfo = { ...summaryTripInfo, ...info }" />
+    <ChatBox v-show="screen === 'assistant'" :initial-message="importedMessage" :initial-context="importedContext" :show-order-button="showOrderButton" @open-summary="openSummary" @update-trip-info="(info) => summaryTripInfo = { ...summaryTripInfo, ...info }" />
 
     <header v-if="screen === 'summary'" class="header">
       <button class="back-button" aria-label="返回行程助手" @click="backToAssistant">‹</button>

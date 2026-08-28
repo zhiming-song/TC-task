@@ -1,42 +1,79 @@
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   card: { type: Object, required: true },
   selected: { type: Boolean, default: false },
   recommended: { type: Boolean, default: false },
+  index: { type: Number, default: 1 },
+  reason: { type: String, default: '' },
 })
 
 const emit = defineEmits(['select'])
+
+const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
+const numberText = computed(() => CIRCLED[props.index - 1] || String(props.index))
 </script>
 
 <template>
-  <article class="ticket-card" :class="{ selected, recommended }">
-    <div class="ticket-head">
-      <span class="ticket-icon">🎫</span>
-      <div>
-        <strong>{{ card.title }}</strong>
-        <span>{{ card.destination }} · {{ card.category }}</span>
+  <article class="ticket-card" :class="{ selected, recommended }" @click="emit('select')">
+    <img
+      v-if="card.image_url"
+      class="ticket-img"
+      :src="card.image_url"
+      :alt="card.attraction_name || card.title"
+      loading="lazy"
+    />
+
+    <header class="rec-head">
+      <span class="rec-num">{{ numberText }}</span>
+      <strong class="rec-reason">{{ reason }}</strong>
+      <span v-if="recommended" class="rec-best">AI推荐</span>
+    </header>
+
+    <div class="ticket-main">
+      <div class="ticket-info">
+        <strong class="ticket-name">{{ card.title }}</strong>
+        <span class="ticket-meta">{{ card.destination }} · {{ card.category }}</span>
+        <span class="ticket-meta">建议游玩 {{ card.duration_hours }}小时 · {{ card.travelers }}人合计 ¥{{ card.total_price_yuan }}</span>
+        <span class="ticket-open">{{ card.opening_hours }}</span>
+        <span
+          v-if="card.remaining_inventory !== undefined"
+          class="ticket-inventory"
+          :class="{ limited: card.inventory_status === '紧张' }"
+        >
+          余 {{ card.remaining_inventory }} · {{ card.inventory_status }}
+        </span>
       </div>
-      <span v-if="recommended" class="recommended-badge">★ 推荐</span>
-    </div>
 
-    <div class="ticket-info">
-      <div><span>建议游玩</span><strong>{{ card.duration_hours }}小时</strong></div>
-      <div><span>{{ card.travelers }}人合计</span><strong>¥{{ card.total_price_yuan }}</strong></div>
-      <div class="price"><span>每人票价</span><strong>¥{{ card.unit_price_yuan }}</strong></div>
+      <div class="price-block">
+        <span class="price-label">每人票价</span>
+        <strong class="price">¥{{ card.unit_price_yuan }}</strong>
+        <a
+          class="book-btn"
+          :href="card.booking_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          :title="card.cta_label"
+          @click.stop
+        >订</a>
+      </div>
     </div>
-
-    <div class="opening">{{ card.opening_hours }}</div>
 
     <div class="ticket-action">
-      <span :class="{ limited: card.inventory_status === '紧张' }">
-        余 {{ card.remaining_inventory }} · {{ card.inventory_status }}
-      </span>
-      <div>
-        <button :class="{ active: selected }" type="button" @click="emit('select')">
-          {{ selected ? '✓ 已选择' : '选择此门票' }}
-        </button>
-        <a :href="card.booking_url" target="_blank" rel="noopener noreferrer">{{ card.cta_label }} ›</a>
-      </div>
+      <button
+        :class="{ active: selected }"
+        type="button"
+        @click.stop="emit('select')"
+      >
+        {{ selected ? '✓ 已选择' : '选择此门票' }}
+      </button>
+      <a
+        :href="card.booking_url"
+        target="_blank"
+        rel="noopener noreferrer"
+        @click.stop
+      >{{ card.cta_label }} ›</a>
     </div>
   </article>
 </template>
@@ -44,17 +81,18 @@ const emit = defineEmits(['select'])
 <style scoped>
 .ticket-card {
   overflow: hidden;
-  border: 1px solid #dfe5f1;
+  border: 1px solid #e4e8ee;
   border-top: 3px solid #ef8c34;
   border-radius: 14px;
   color: #20232a;
   background: #fff;
   box-shadow: 0 6px 20px rgba(38, 56, 92, 0.07);
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
-.ticket-card.selected {
-  border-color: #27a65a;
-  box-shadow: 0 0 0 2px rgba(39, 166, 90, 0.13), 0 8px 22px rgba(38, 56, 92, 0.09);
+.ticket-card:hover {
+  box-shadow: 0 8px 22px rgba(38, 56, 92, 0.1);
 }
 
 .ticket-card.selected {
@@ -63,72 +101,181 @@ const emit = defineEmits(['select'])
 }
 
 .ticket-card.recommended {
-  border-color: #f0a020;
-  box-shadow: 0 0 0 2px rgba(240, 160, 32, 0.15), 0 8px 22px rgba(38, 56, 92, 0.09);
+  border-color: #ff8a00;
+  box-shadow: 0 0 0 2px rgba(255, 138, 0, 0.14), 0 6px 18px rgba(255, 138, 0, 0.08);
 }
 
-.ticket-head {
-  padding: 11px 13px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+.ticket-img {
+  width: 100%;
+  height: 130px;
+  display: block;
+  object-fit: cover;
+  background: #f2f4f7;
+}
+
+.rec-head {
+  padding: 10px 13px 8px;
+  display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
+  border-bottom: 1px solid #edf0f5;
 }
 
-.recommended-badge {
-  padding: 4px 10px;
-  border-radius: 12px;
+.rec-num {
+  flex: 0 0 auto;
+  color: #ff5e2d;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.rec-reason {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rec-best {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 10px;
   color: #fff;
-  background: linear-gradient(135deg, #f0a020, #f5c842);
-  font-size: 11px;
+  background: linear-gradient(135deg, #ff8a00, #ff5e2d);
+  font-size: 10px;
   font-weight: 600;
 }
 
-.ticket-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: #fff4e8;
-  font-size: 18px;
+.ticket-main {
+  padding: 10px 13px 11px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
 }
-
-.ticket-head div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.ticket-head strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.ticket-head div span { color: #8b93a3; font-size: 10px; }
-.mode-badge { padding: 3px 7px; border-radius: 10px; color: #9a6700; background: #fff5cc; font-size: 10px; }
 
 .ticket-info {
-  padding: 10px 13px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  border-top: 1px solid #edf0f5;
-  background: #fafbfc;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.ticket-info div { display: flex; flex-direction: column; gap: 2px; }
-.ticket-info span { color: #9298a3; font-size: 9px; }
-.ticket-info strong { font-size: 12px; }
-.ticket-info .price { align-items: flex-end; }
-.ticket-info .price strong { color: #f05a29; font-size: 15px; }
-.opening { padding: 7px 13px; overflow: hidden; color: #858c98; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.ticket-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ticket-meta {
+  color: #8d94a0;
+  font-size: 11px;
+}
+
+.ticket-open {
+  color: #a4abb5;
+  font-size: 10px;
+}
+
+.ticket-inventory {
+  align-self: flex-start;
+  padding: 3px 7px;
+  border-radius: 9px;
+  color: #168444;
+  background: #eaf8ef;
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+.ticket-inventory.limited {
+  color: #b96a00;
+  background: #fff3da;
+}
+
+.price-block {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.price-label {
+  color: #9298a3;
+  font-size: 10px;
+}
+
+.price {
+  color: #f05a29;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.book-btn {
+  margin-top: 4px;
+  padding: 6px 14px;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, #ff8a00, #ff5e2d);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.book-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(255, 138, 0, 0.3);
+}
 
 .ticket-action {
-  padding: 9px 11px;
+  padding: 9px 13px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
   border-top: 1px solid #edf0f5;
+  background: #fafbfc;
 }
 
-.ticket-action > span { padding: 3px 6px; border-radius: 9px; color: #168444; background: #eaf8ef; font-size: 9px; }
-.ticket-action > span.limited { color: #b96a00; background: #fff3da; }
-.ticket-action div { display: flex; align-items: center; gap: 6px; }
-.ticket-action button, .ticket-action a { padding: 5px 8px; border-radius: 13px; font-family: inherit; font-size: 10px; text-decoration: none; }
-.ticket-action button { border: 1px solid #cad3e3; color: #536174; background: #fff; cursor: pointer; }
-.ticket-action button.active { border-color: #27a65a; color: #168444; background: #eaf8ef; font-weight: 600; }
-.ticket-action a { color: #fff; background: #ef8c34; }
+.ticket-action button,
+.ticket-action a {
+  padding: 5px 12px;
+  border-radius: 13px;
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ticket-action button {
+  border: 1px solid #cad3e3;
+  color: #536174;
+  background: #fff;
+}
+
+.ticket-action button:hover {
+  border-color: #27a65a;
+  color: #168444;
+}
+
+.ticket-action button.active {
+  border-color: #27a65a;
+  color: #168444;
+  background: #eaf8ef;
+  font-weight: 600;
+}
+
+.ticket-action a {
+  color: #fff;
+  background: #ef8c34;
+}
+
+.ticket-action a:hover {
+  background: #ff8a00;
+}
 </style>

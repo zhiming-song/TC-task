@@ -1,6 +1,6 @@
 """程星AI行程规划工具。
 
-所有金额都先转换为“分”计算，避免浮点误差。
+所有金额都先转换为"分"计算，避免浮点误差。
 """
 
 from __future__ import annotations
@@ -181,9 +181,10 @@ def search_transport(args: dict[str, Any]) -> dict[str, Any]:
         remaining = int(row["remaining_inventory"])
         tags_raw = row.get("tags_json") or "{}"
         tags_json = json.loads(tags_raw) if isinstance(tags_raw, str) else (tags_raw or {})
-        original_cents = int(tags_json.get("original_price_cents", int(unit_cents * 1.2))) if isinstance(tags_json, dict) else int(unit_cents * 1.2)
-        recommended = tags_json.get("recommended", False) if isinstance(tags_json, dict) else False
-        flight_type = tags_json.get("flight_type", "") if isinstance(tags_json, dict) else ""
+        tags = tags_json if isinstance(tags_json, dict) else {}
+        original_cents = int(tags.get("original_price_cents", int(unit_cents * 1.2)))
+        recommended = tags.get("recommended", False)
+        flight_type = tags.get("flight_type", "")
         candidates.append(
             {
                 "id": row["product_id"],
@@ -288,6 +289,7 @@ def search_hotels(args: dict[str, Any]) -> dict[str, Any]:
                 "services": tags.get("services", []),
                 "image_count": tags.get("image_count", 4),
                 "booking_url": row["booking_url"],
+                "image_url": row["image_url"] if "image_url" in row.keys() else "",
                 "catalog_source": "tongcheng_hotel_catalog",
             }
         )
@@ -339,6 +341,7 @@ def search_attractions(args: dict[str, Any]) -> dict[str, Any]:
                 "suggested_duration_hours": row["duration_hours"],
                 "opening_hours": row["opening_hours"],
                 "booking_url": row["booking_url"],
+                "image_url": row["image_url"] if "image_url" in row.keys() else "",
                 "catalog_source": "tongcheng_ticket_catalog",
             }
         )
@@ -492,7 +495,7 @@ def compose_plan_options(args: dict[str, Any]) -> dict[str, Any]:
         "travelers": travelers,
         "payer_count": payer_count,
         "plans": plans,
-        "pricing_warning": "\u9884\u8ba2\u524d\u5fc5\u987b\u5237\u65b0\u5b9e\u65f6\u4ef7\u683c\u4e0e\u5e93\u5b58\u3002",
+        "pricing_warning": "预订前必须刷新实时价格与库存。",
     }
     response["persistence"] = {
         "stored": True,

@@ -14,8 +14,23 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  variant: {
+    type: String,
+    default: '',
+  },
+  welcomeText: {
+    type: String,
+    default: '',
+  },
+  initialContext: {
+    type: String,
+    default: '',
+  },
 })
+
 const emit = defineEmits(['open-summary', 'update-trip-info'])
+
+const isDeeptrip = computed(() => props.variant === 'deeptrip')
 
 const messages = ref([])
 const input = ref('')
@@ -37,11 +52,20 @@ const tripInfo = ref({
   travelers: 5,
   groupName: '国庆上海冲冲冲',
 })
+
 const starters = [
   '我想规划一次多人旅行',
   '帮我整理这段群聊里的出行需求',
   '北京出发去上海，5人，玩3天',
 ]
+
+// 导入流程：AI 首次回复视为必要信息整理完成
+const isImportFlow = computed(() => props.initialMessage.trim() !== '')
+const infoOrganized = ref(false)
+const infoConfirmed = ref(false)
+const canConfirmInfo = computed(
+  () => isImportFlow.value && infoOrganized.value && !infoConfirmed.value && !loading.value,
+)
 
 function formatMessage(content) {
   const escaped = content
@@ -105,9 +129,6 @@ function onScroll() {
 
 /**
  * 提取可展示的请求失败信息。
- *
- * @param {unknown} error 请求过程抛出的异常。
- * @return {string} 可直接展示给用户的错误信息。
  */
 function getErrorMessage(error) {
   if (error instanceof Error && error.message) return error.message
@@ -122,9 +143,12 @@ async function send(contextContent = '', suppressCards = false) {
   const normalizedContext = typeof contextContent === 'string' ? contextContent : ''
   messages.value.push({ role: 'user', content: text, apiContent: normalizedContext || text })
   input.value = ''
+  return runJob(suppressCards)
+}
+
+async function runJob(suppressCards = false) {
   loading.value = true
 
-  // 发给后端的历史（不含即将占位的空回复），保留选项流转的结构化上下文
   const payload = messages.value.map(({ role, content, apiContent }) => ({
     role,
     content: apiContent || content,
@@ -154,6 +178,7 @@ async function send(contextContent = '', suppressCards = false) {
       completed = job.status === 'completed'
       if (!completed) await new Promise((resolve) => setTimeout(resolve, 400))
     }
+    if (isImportFlow.value && !infoOrganized.value) infoOrganized.value = true
     return true
   } catch (err) {
     const errorMessage = getErrorMessage(err)
@@ -173,13 +198,106 @@ function useStarter(text) {
   send()
 }
 
-function selectTransport(msg, card) {
+async function confirmTripInfo() {
+  if (loading.value || infoConfirmed.value) return
+  infoConfirmed.value = true
+  const confirmText = '信息确认无误，请开始推荐交通方案'
+  input.value = confirmText
+  await nextTick()
+  const succeeded = await send(confirmText)
+  if (!succeeded) infoConfirmed.value = false
+}
+
+/**
+ * 拆分助手回复中的结构化标记
+ */
+function splitMeta(content) {
+  const chips = []
+  const body = []
+  let recommendedId = ''
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('【推荐方案ID】')) {
+      const match = trimmed.match(/^【推荐方案ID】\s*(\S+)\s*$/)
+      if (match) recommendedId = match[1]
+      continue
+    }
+    const chipMatch = trimmed.match(/^◎\s*(.+)$/)
+    if (chipMatch) chips.push(chipMatch[1])
+    else body.push(line)
+  }
+  return { chips, recommendedId, body: body.join('\n') }
+}
+
+function metaParts(msg) {
+  return splitMeta(msg.content)
+}
+
+function isRecommendedCard(card, msg) {
+  const recommendedId = metaParts(msg).recommendedId
+  if (!recommendedId) {
+    // 兼容旧版：基于评分和价格计算推荐
+    return false
+  }
+  return (card.id || '').split(':').pop() === recommendedId
+}
+
+function isRecommendedCardLegacy(cards, card) {
+  if (!cards?.length) return false
+  return cards[0]?.id === card.id
+}
+
+async function runChip(chipText) {
   if (loading.value) return
+  input.value = chipText
+  await nextTick()
+  send(chipText)
+}
+
+function transportReason(card, list) {
+  if (list.length < 2) return '推荐方案'
+  const lowest = Math.min(...list.map((item) => Number(item.unit_price_yuan) || Number.MAX_SAFE_INTEGER))
+  const earliest = list.map((item) => item.departure_time || '99:99').sort()[0]
+  const fastest = Math.min(...list.map((item) => Number(item.duration_minutes) || Number.MAX_SAFE_INTEGER))
+  if (Number(card.unit_price_yuan) === lowest) return '票价最低，预算友好'
+  if (card.departure_time === earliest) return '出发最早，上午就到'
+  if (Number(card.duration_minutes) === fastest) return '全程最快，省时省心'
+  return '性价比均衡'
+}
+
+function hotelReason(card, list) {
+  if (list.length < 2) return '推荐酒店'
+  const lowest = Math.min(...list.map((item) => Number(item.unit_price_yuan) || Number.MAX_SAFE_INTEGER))
+  const best = Math.max(...list.map((item) => Number(item.rating) || 0))
+  if (Number(card.unit_price_yuan) === lowest) return '价格最低，预算友好'
+  if (Number(card.rating) === best) return '口碑最佳，品质有保障'
+  return '位置均衡，出行方便'
+}
+
+function ticketReason(card, list) {
+  if (list.length < 2) return '推荐景点'
+  const cheapest = Math.min(...list.map((item) => Number(item.unit_price_yuan) || Number.MAX_SAFE_INTEGER))
+  const longest = Math.max(...list.map((item) => Number(item.duration_hours) || 0))
+  if (Number(card.unit_price_yuan) === cheapest) return '票价最低，性价比高'
+  if (Number(card.duration_hours) === longest) return '可玩最久，内容充实'
+  return '人气必去，经典之选'
+}
+
+function selectTransport(msg, card) {
+  if (loading.value || msg.selectionConfirmed) return
   msg.selectedCardId = card.id
 }
 
 function transportCards(msg) {
   return msg.cards?.filter((card) => card.type === 'transport_offer') || []
+}
+
+function trainCards(msg) {
+  return transportCards(msg).filter((card) => card.transport_type === 'train')
+}
+
+function flightCards(msg) {
+  return transportCards(msg).filter((card) => card.transport_type === 'flight')
 }
 
 function hotelCards(msg) {
@@ -188,20 +306,6 @@ function hotelCards(msg) {
 
 function ticketCards(msg) {
   return msg.cards?.filter((card) => card.type === 'ticket_offer') || []
-}
-
-function getRecommendedCard(cards) {
-  if (!cards?.length) return null
-  return cards.reduce((best, card) => {
-    const score = (card.rating || 0) * 10 - (card.unit_price_yuan || 0) / 100
-    const bestScore = best ? (best.rating || 0) * 10 - (best.unit_price_yuan || 0) / 100 : -Infinity
-    return score > bestScore ? card : best
-  }, null)
-}
-
-function isRecommendedCard(cards, card) {
-  const recommended = getRecommendedCard(cards)
-  return recommended?.id === card.id
 }
 
 function canShowTickets(msg, index) {
@@ -227,7 +331,6 @@ const summarySections = computed(() => [
     key: 'transport',
     title: '交通',
     cards: allCardsByType('transport_offer'),
-    // 锁定时用确认数据，未锁定时用草稿投票数据
     selectedIds: confirmedTransportId.value
       ? [confirmedTransportId.value]
       : (summaryDraft.value.transport ? [summaryDraft.value.transport] : []),
@@ -257,7 +360,6 @@ function handleSummarySelect({ sectionKey, cardId }) {
   const section = summarySections.value.find((item) => item.key === sectionKey)
   if (!section || section.locked) return
   
-  // cardId 为 null 表示取消投票
   if (cardId === null) {
     summaryDraft.value[sectionKey] = ''
     return
@@ -397,20 +499,17 @@ function openSummaryFromLink() {
 }
 
 function extractTripInfo() {
-  // 从已选交通卡片提取行程基本信息
   const transportCard = allCardsByType('transport_offer').find(c => c.id === confirmedTransportId.value)
   if (transportCard) {
     tripInfo.value.origin = transportCard.origin || '北京'
     tripInfo.value.destination = transportCard.destination || '上海'
     tripInfo.value.travelers = transportCard.travelers || 5
   }
-  // 从 AI 回复中提取日期
   const allText = messages.value.map(m => m.content || '').join('\n')
   const dateMatch = allText.match(/(\d{1,2})[月.\-](\d{1,2})/g)
   if (dateMatch && dateMatch.length >= 2) {
     tripInfo.value.dates = dateMatch[0].replace(/月/, '.').replace(/日/, '') + ' - ' + dateMatch[1].replace(/月/, '.').replace(/日/, '')
   }
-  // 更新标题
   tripInfo.value.title = `${tripInfo.value.destination}行程规划`
 }
 
@@ -420,7 +519,6 @@ function appendSummaryLink() {
 }
 
 function onKeydown(event) {
-  // Enter 发送，Shift+Enter 换行
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
     send()
@@ -430,16 +528,22 @@ function onKeydown(event) {
 onMounted(async () => {
   const imported = props.initialMessage.trim()
   if (!imported) return
-  input.value = imported
+  
+  const instructions = props.initialContext.trim()
+  messages.value.push({
+    role: 'user',
+    content: imported,
+    apiContent: instructions ? `${imported}\n\n${instructions}` : imported,
+  })
   await nextTick()
-  send()
+  runJob()
 })
 </script>
 
 <template>
   <div class="chat">
     <div ref="listEl" class="list" @scroll="onScroll">
-      <div v-if="!messages.length" class="empty">
+      <div v-if="!messages.length && !isDeeptrip" class="empty">
         <strong>把群聊记录或出行想法发给我</strong>
         <span>我会依次确认人数、日期、城市和偏好，再规划交通、酒店、景点与ABC方案。</span>
         <div class="starter-list">
@@ -447,18 +551,41 @@ onMounted(async () => {
             {{ text }}
           </button>
         </div>
+        <small>价格与库存以预订时为准。</small>
+      </div>
+
+      <div v-if="welcomeText" class="row assistant">
+        <div class="message-stack">
+          <div class="bubble">{{ welcomeText }}</div>
+        </div>
       </div>
 
       <div v-for="(msg, i) in messages" :key="i" class="row" :class="msg.role">
         <div class="message-stack">
-          <div class="bubble" :class="{ 'typing-bubble': !msg.content }">
-            <div v-if="msg.content" class="message-rich" v-html="formatMessage(msg.content)"></div>
-            <span v-if="!msg.content" class="typing">{{ msg.progress || '' }}</span>
+          <div v-if="isDeeptrip && !msg.content" class="dt-status">{{ msg.progress || '正在规划行程' }}</div>
+          <div v-else class="bubble" :class="{ 'typing-bubble': !msg.content }">
+            <div v-if="msg.content" class="message-rich" v-html="formatMessage(metaParts(msg).body)"></div>
+            <span v-else class="typing">{{ msg.progress || '思考中…' }}</span>
           </div>
+          
+          <div v-if="msg.content && metaParts(msg).chips.length" class="chip-list">
+            <button
+              v-for="chip in metaParts(msg).chips"
+              :key="chip"
+              class="query-chip"
+              type="button"
+              :disabled="loading"
+              @click="runChip(chip)"
+            >
+              ◎ {{ chip }}
+            </button>
+          </div>
+          
           <div v-if="summaryLinkVisible && i === messages.length - 1" class="summary-link-message">
             <p>根据上面的选择，为你生成一份旅行计划汇总页面。</p>
             <a href="#trip-summary" @click.prevent="openSummaryFromLink">旅行计划汇总</a>
           </div>
+          
           <button
             v-if="props.showOrderButton && i === messages.length - 1"
             class="order-button"
@@ -466,25 +593,47 @@ onMounted(async () => {
           >
             一键统一下单
           </button>
-          <div v-if="transportCards(msg).length" class="card-section-title">
-            <strong>交通库存候选</strong>
-            <span>{{ transportCards(msg).length }} 个方案可对比</span>
+
+          <div v-if="trainCards(msg).length" class="card-section-title">
+            <strong>高铁方案</strong>
+            <span>{{ trainCards(msg).length }} 个方案可对比</span>
           </div>
-          <div v-if="transportCards(msg).length" class="offer-grid">
+          <div v-if="trainCards(msg).length" class="train-list">
             <TransportCard
-              v-for="card in transportCards(msg)"
+              v-for="(card, idx) in trainCards(msg)"
               :key="card.id"
               :card="card"
+              :index="idx + 1"
+              :reason="transportReason(card, trainCards(msg))"
+              :recommended="isRecommendedCard(card, msg) || isRecommendedCardLegacy(trainCards(msg), card)"
               :selected="msg.selectedCardId === card.id"
-              :recommended="isRecommendedCard(transportCards(msg), card)"
               @select="selectTransport(msg, card)"
             />
           </div>
+
+          <div v-if="flightCards(msg).length" class="card-section-title">
+            <strong>航班方案</strong>
+            <span>横向滑动查看 {{ flightCards(msg).length }} 个方案</span>
+          </div>
+          <div v-if="flightCards(msg).length" class="flight-scroll">
+            <div v-for="(card, idx) in flightCards(msg)" :key="card.id" class="flight-cell">
+              <TransportCard
+                :card="card"
+                :index="idx + 1"
+                :reason="transportReason(card, flightCards(msg))"
+                :recommended="isRecommendedCard(card, msg) || isRecommendedCardLegacy(flightCards(msg), card)"
+                :selected="msg.selectedCardId === card.id"
+                @select="selectTransport(msg, card)"
+              />
+            </div>
+          </div>
+          <p v-if="transportCards(msg).length" class="ai-disclaimer">内容由程星AI生成，仅供参考</p>
+
           <div v-if="transportCards(msg).length" class="choice-bar">
             <span v-if="msg.selectedCardId">
               {{ msg.selectionConfirmed ? '已提交所选交通方案' : '已选择一个交通方案' }}
             </span>
-            <span v-else>请先选择一个交通方案</span>
+            <span v-else>未选择将按 AI 推荐继续</span>
             <button
               class="next-button"
               type="button"
@@ -497,16 +646,18 @@ onMounted(async () => {
           </div>
 
           <div v-if="hotelCards(msg).length" class="card-section-title">
-            <strong>酒店库存候选</strong>
-            <span>{{ hotelCards(msg).length }} 个方案可对比</span>
+            <strong>酒店推荐</strong>
+            <span>{{ hotelCards(msg).length }} 家酒店可对比</span>
           </div>
-          <div v-if="hotelCards(msg).length" class="offer-grid">
+          <div v-if="hotelCards(msg).length" class="hotel-list">
             <HotelCard
-              v-for="card in hotelCards(msg)"
+              v-for="(card, idx) in hotelCards(msg)"
               :key="card.id"
               :card="card"
+              :index="idx + 1"
+              :reason="hotelReason(card, hotelCards(msg))"
+              :recommended="isRecommendedCard(card, msg) || isRecommendedCardLegacy(hotelCards(msg), card)"
               :selected="msg.selectedHotelId === card.id"
-              :recommended="isRecommendedCard(hotelCards(msg), card)"
               @select="selectHotel(msg, card)"
             />
           </div>
@@ -514,7 +665,7 @@ onMounted(async () => {
             <span v-if="msg.selectedHotelId">
               {{ msg.hotelSelectionConfirmed ? '已提交所选酒店' : '已选择一个酒店方案' }}
             </span>
-            <span v-else>请先选择一个酒店方案</span>
+            <span v-else>未选择将按 AI 推荐继续</span>
             <button
               class="next-button"
               type="button"
@@ -526,29 +677,31 @@ onMounted(async () => {
             </button>
           </div>
 
-          <div v-if="canShowTickets(msg, i)" class="card-section-title">
+          <div v-if="ticketCards(msg).length" class="card-section-title">
             <strong>景点门票库存候选</strong>
             <span>{{ ticketCards(msg).length }} 个产品可对比</span>
           </div>
-          <div v-if="canShowTickets(msg, i)" class="offer-grid">
+          <div v-if="ticketCards(msg).length" class="offer-grid">
             <TicketCard
-              v-for="card in ticketCards(msg)"
+              v-for="(card, idx) in ticketCards(msg)"
               :key="card.id"
               :card="card"
+              :index="idx + 1"
+              :reason="ticketReason(card, ticketCards(msg))"
+              :recommended="isRecommendedCard(card, msg) || isRecommendedCardLegacy(ticketCards(msg), card)"
               :selected="msg.selectedTicketIds?.includes(card.id)"
-              :recommended="isRecommendedCard(ticketCards(msg), card)"
               @select="selectTicket(msg, card)"
             />
           </div>
-          <div v-if="canShowTickets(msg, i) && !msg.ticketSelectionConfirmed" class="choice-bar">
+          <div v-if="ticketCards(msg).length && !msg.ticketSelectionConfirmed" class="choice-bar">
             <span v-if="msg.selectedTicketIds?.length">
               {{ msg.ticketSelectionConfirmed ? '已提交所选门票' : `已选择 ${msg.selectedTicketIds.length} 个门票产品` }}
             </span>
-            <span v-else>请先选择一个门票产品</span>
+            <span v-else>未选择将按 AI 推荐继续</span>
             <button
               class="next-button"
               type="button"
-              :disabled="loading || msg.ticketSelectionConfirmed"
+              :disabled="loading || !msg.selectedTicketIds?.length || msg.ticketSelectionConfirmed"
               @click="continueWithTicket(msg)"
             >
               {{ msg.ticketSelectionConfirmed ? '已进行汇总' : '进行汇总' }}
@@ -558,9 +711,44 @@ onMounted(async () => {
         </div>
       </div>
 
+      <div v-if="canConfirmInfo" class="row assistant">
+        <div class="message-stack">
+          <div class="confirm-bar">
+            <button
+              class="confirm-btn"
+              :class="{ 'dt-brand': isDeeptrip }"
+              type="button"
+              @click="confirmTripInfo"
+            >
+              确认，开始推荐交通
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="composer">
+    <div v-if="isDeeptrip" class="composer dt-composer">
+      <button class="dt-collect" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3.5l2.7 5.5 6 .9-4.4 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.3 9.9l6-.9z" />
+        </svg>
+        <span>当前收藏</span>
+      </button>
+      <textarea
+        v-model="input"
+        rows="1"
+        placeholder="发消息或按住说话."
+        :disabled="loading"
+        @keydown="onKeydown"
+      ></textarea>
+      <button class="dt-send" type="button" :disabled="loading || !input.trim()" @click="send()" aria-label="发送">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 19V5M6 11l6-6 6 6" />
+        </svg>
+      </button>
+    </div>
+
+    <div v-else class="composer">
       <textarea
         v-model="input"
         rows="1"
@@ -881,6 +1069,147 @@ button:disabled {
   padding: 0 18px;
 }
 
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.query-chip {
+  padding: 7px 12px;
+  border: 1px solid #ffb08c;
+  border-radius: 16px;
+  color: #e8541f;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.query-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-disclaimer {
+  margin: -2px 0 0;
+  color: #a4abb5;
+  font-size: 11px;
+  text-align: center;
+}
+
+.train-list,
+.hotel-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flight-scroll {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.flight-cell {
+  flex: 0 0 244px;
+  max-width: 78%;
+}
+
+.confirm-bar {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+}
+
+.confirm-btn {
+  padding: 9px 24px;
+  border: 0;
+  border-radius: 20px;
+  color: #fff;
+  background: var(--primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.confirm-btn.dt-brand {
+  background: #ff5e2d;
+}
+
+/* DeepTrip 风格 */
+.dt-status {
+  align-self: flex-start;
+  color: #999;
+  font-size: 12px;
+}
+
+.dt-composer {
+  align-items: center;
+  gap: 8px;
+}
+
+.dt-collect {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: #666;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.dt-collect svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: #ff8a00;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.dt-composer textarea {
+  min-height: 36px;
+  border-color: transparent;
+  border-radius: 18px;
+  background: #f2f2f2;
+}
+
+.dt-send {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #ff5e2d;
+}
+
+.dt-send svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dt-send:disabled {
+  opacity: 0.4;
+}
+
 /* 移动端适配 */
 @media (max-width: 768px) {
   .list {
@@ -911,12 +1240,11 @@ button:disabled {
   .composer {
     padding: 10px 14px;
     padding-bottom: calc(10px + var(--safe-bottom));
-    /* 键盘弹起时表单不被遮挡 */
     background: var(--panel);
   }
 
   textarea {
-    font-size: 16px; /* 16px 可避免 iOS 聚焦时自动放大 */
+    font-size: 16px;
   }
 
   button {
