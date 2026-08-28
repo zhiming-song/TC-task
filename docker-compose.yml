@@ -42,31 +42,10 @@ services:
         condition: service_healthy
     expose:
       - "80"
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
     networks:
       - internal
-      - gateway
-
-  tc-agent-gateway:
-    image: nginx:1.27-alpine
-    container_name: tc-agent-gateway
-    restart: unless-stopped
-    depends_on:
-      tc-agent-frontend:
-        condition: service_healthy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deploy/tankpizza-gateway.conf:/etc/nginx/conf.d/default.conf:ro
-      - ${LETSENCRYPT_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - gateway
 
 volumes:
   tc-agent-sqlite-data:
@@ -76,6 +55,3 @@ networks:
   # 站内互访（前端 -> 后端 /api 反代），不接入外层网关
   internal:
     name: tc-agent-internal
-  # 网关与前端之间的回源网络，后端不接入，减少暴露面
-  gateway:
-    name: tc-agent-gateway
