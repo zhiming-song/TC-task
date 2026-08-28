@@ -28,6 +28,86 @@ def _random_image_url(folder: str) -> str:
     return ""
 
 
+def _extract_trip_id_from_history(history_text: str) -> str:
+    """从对话历史中提取 trip_id"""
+    import re
+    trip_match = re.search(r"trip_[A-Za-z0-9_]+", history_text)
+    return trip_match.group(0) if trip_match else ""
+
+
+def _fetch_and_build_hotel_cards(trip_id: str) -> dict[str, Any] | None:
+    """直接调用 repository 搜索酒店商品并构建卡片，用于 LLM 跳过工具调用时的兜底。"""
+    bundle = repository.get_trip_bundle(trip_id)
+    trip = bundle.get("trip") if bundle else {}
+    if not trip:
+        return None
+    # 直接从商品库搜索，不依赖数据库缓存
+    from app.agent.travel_tools import execute_tool
+    checkin = trip.get("start_date", "")
+    checkout = trip.get("end_date", "")
+    rooms = trip.get("rooms", 1)
+    destination = trip.get("destination", "")
+    if not all([trip_id, destination, checkin, checkout]):
+        return None
+    tool_result = execute_tool(
+        "search_hotels",
+        json.dumps({
+            "trip_id": trip_id,
+            "destination": destination,
+            "checkin_date": checkin,
+            "checkout_date": checkout,
+            "rooms": rooms,
+        }, ensure_ascii=False),
+    )
+    try:
+        wrapper = json.loads(tool_result)
+        result = wrapper.get("result") if wrapper.get("ok") else None
+        if not result or not result.get("hotels"):
+            return None
+    except (json.JSONDecodeError, AttributeError):
+        return None
+    cards = _hotel_cards(tool_result)
+    if not cards:
+        return None
+    reply = "哪家酒店你更感兴趣，点击去预订吧~"
+    return {"cards": cards, "reply": reply, "tool_result": tool_result}
+
+
+def _fetch_and_build_ticket_cards(trip_id: str) -> dict[str, Any] | None:
+    """直接调用 repository 搜索门票商品并构建卡片，用于 LLM 跳过工具调用时的兜底。"""
+    bundle = repository.get_trip_bundle(trip_id)
+    trip = bundle.get("trip") if bundle else {}
+    if not trip:
+        return None
+    from app.agent.travel_tools import execute_tool
+    destination = trip.get("destination", "")
+    travelers = trip.get("travelers", 1)
+    attractions = trip.get("attractions", [])
+    if not all([trip_id, destination, travelers]):
+        return None
+    tool_result = execute_tool(
+        "search_attractions",
+        json.dumps({
+            "trip_id": trip_id,
+            "destination": destination,
+            "travelers": travelers,
+            "attractions": attractions,
+        }, ensure_ascii=False),
+    )
+    try:
+        wrapper = json.loads(tool_result)
+        result = wrapper.get("result") if wrapper.get("ok") else None
+        if not result or not result.get("attractions"):
+            return None
+    except (json.JSONDecodeError, AttributeError):
+        return None
+    cards = _ticket_cards(tool_result)
+    if not cards:
+        return None
+    reply = "哪个景点你更感兴趣，点击去预订吧~"
+    return {"cards": cards, "reply": reply, "tool_result": tool_result}
+
+
 @dataclass
 class AgentRunResult:
     reply: str
@@ -347,16 +427,91 @@ class Agent:
             message = response.choices[0].message
             if not message.tool_calls:
                 reply = message.content or "请提供出发地、目的地、出行日期和人数，我来开始规划。"
-                if not is_summary_request and not cards and any(word in "\n".join(item.content for item in messages) for word in ("景点", "门票")):
-                    import re
+                # 检测是否处于酒店/门票推荐环节但 LLM 跳过了工具调用
+                if not cards and not is_summary_request:
                     history_text = "\n".join(item.content for item in messages)
-                    trip_match = re.search(r"trip_[A-Za-z0-9_]+", history_text)
-                    trip_id = trip_match.group(0) if trip_match else ""
-                    bundle = repository.get_trip_bundle(trip_id) if trip_id else None
-                    if bundle and bundle.get("attraction_tickets"):
-                        trip = bundle["trip"]
-                        offers = [json.loads(row["payload_json"]) for row in bundle["attraction_tickets"]]
-                        cards.extend(_ticket_cards(json.dumps({"ok": True, "result": {"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"], "attractions": offers, "data_mode": "demo_estimate", "realtime": False, "bookable": False}}, ensure_ascii=False)))
+                    in_hotel_step = "酒店" in history_text or "哪家酒店" in history_text
+                    in_ticket_step = "景点" in history_text or "门票" in history_text
+
+                    # 先把 LLM 的回复加入 payload，保持上下文连贯
+                    payload.append({
+                        "role": "assistant",
+                        "content": message.content,
+                    })
+
+                    tool_result = None
+                    tool_name = None
+                    if in_hotel_step:
+                        trip_id = _extract_trip_id_from_history(history_text) or trip_id
+                        if trip_id and not any("search_hotels" in str(m) for m in payload):
+                            bundle = _fetch_and_build_hotel_cards(trip_id)
+                            if bundle:
+                                tool_result = bundle["tool_result"]
+                                tool_name = "search_hotels"
+                                cards.extend(bundle["cards"])
+                                reply = bundle["reply"]
+                    elif in_ticket_step:
+                        trip_id = _extract_trip_id_from_history(history_text) or trip_id
+                        if trip_id and not any("search_attractions" in str(m) for m in payload):
+                            bundle = _fetch_and_build_ticket_cards(trip_id)
+                            if bundle:
+                                tool_result = bundle["tool_result"]
+                                tool_name = "search_attractions"
+                                cards.extend(bundle["cards"])
+                                reply = bundle["reply"]
+
+                    # 工具执行成功后，将结果注入 payload，让 LLM 重新生成带【推荐方案ID】的回复
+                    if tool_result and tool_name:
+                        tool_id = f"fallback_{tool_name}_{trip_id}"
+                        payload.append({
+                            "role": "tool",
+                            "tool_call_id": tool_id,
+                            "content": tool_result,
+                        })
+                        # 再调一次 LLM，让它基于工具结果生成正确的推荐回复
+                        re_response = client.chat.completions.create(
+                            model=self.model,
+                            messages=payload,
+                            temperature=temperature,
+                            tools=TOOL_DEFINITIONS,
+                            tool_choice="auto",
+                        )
+                        re_message = re_response.choices[0].message
+                        if re_message.content:
+                            reply = re_message.content
+                        # 如果 LLM 这次有 tool_calls（如 build_daily_itinerary），继续处理
+                        if re_message.tool_calls:
+                            payload.append({
+                                "role": "assistant",
+                                "content": re_message.content or "",
+                                "tool_calls": [tc.model_dump(exclude_none=True) for tc in re_message.tool_calls],
+                            })
+                            for tc in re_message.tool_calls:
+                                sub_result = execute_tool(tc.function.name, tc.function.arguments)
+                                try:
+                                    sub_payload = json.loads(sub_result)
+                                    sub_trip_id = (sub_payload.get("result") or {}).get("trip_id")
+                                    if sub_trip_id:
+                                        trip_id = str(sub_trip_id)
+                                except (json.JSONDecodeError, AttributeError):
+                                    pass
+                                if tc.function.name == "search_transport":
+                                    cards.extend(_transport_cards(sub_result))
+                                elif tc.function.name == "search_hotels":
+                                    cards.extend(_hotel_cards(sub_result))
+                                elif tc.function.name == "search_attractions":
+                                    cards.extend(_ticket_cards(sub_result))
+                                payload.append({
+                                    "role": "tool",
+                                    "tool_call_id": tc.id,
+                                    "content": sub_result,
+                                })
+                        else:
+                            payload.append({
+                                "role": "assistant",
+                                "content": re_message.content or "",
+                            })
+
                 return AgentRunResult(reply=reply, cards=[] if is_summary_request else cards, trip_id=trip_id)
 
             payload.append(
