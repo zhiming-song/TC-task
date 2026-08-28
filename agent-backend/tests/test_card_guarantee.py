@@ -53,6 +53,21 @@ class CardGuaranteeTest(unittest.TestCase):
     def test_ticket_recommendation_always_has_cards(self):
         self.ensure_for("请推荐景点和门票", "search_attractions", "_ticket_cards", "ticket_offer")
 
+    def test_ticket_recommendation_uses_fallback_when_search_is_empty(self):
+        messages = [*self.messages, SimpleNamespace(role="user", content="请推荐景点和门票")]
+        result = SimpleNamespace(reply="已推荐景点", cards=[], trip_id="trip_test123")
+        fallback_cards = [{"type": "ticket_offer", "id": "fallback-1"}]
+
+        with (
+            patch("app.api.routes.repository.get_trip_bundle", return_value={"trip": self.trip}),
+            patch("app.api.routes.execute_tool", return_value='{"ok": true, "result": {}}'),
+            patch("app.api.routes._ticket_cards", return_value=[]),
+            patch("app.api.routes._fetch_and_build_ticket_cards", return_value={"cards": fallback_cards}),
+        ):
+            ensured = _ensure_cards(result, messages)
+
+        self.assertEqual(ensured.cards, fallback_cards)
+
     def test_current_run_trip_id_supports_transport_card_fallback(self):
         messages = [
             SimpleNamespace(role="assistant", content="请确认以上信息"),

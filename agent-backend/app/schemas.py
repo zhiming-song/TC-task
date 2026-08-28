@@ -74,6 +74,8 @@ class HotelCard(CardBase):
     services: list[str]
     image_count: int
     image_url: str
+    is_recommended: bool
+    recommended_reason: str
 
 
 class TicketCard(CardBase):
@@ -89,6 +91,8 @@ class TicketCard(CardBase):
     duration_hours: float
     opening_hours: str
     image_url: str
+    is_recommended: bool
+    recommended_reason: str
 
 
 Card = Annotated[TransportCard | HotelCard | TicketCard, Field(discriminator="type")]

@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.agent.core import _hotel_cards, _ticket_cards, _transport_cards, agent
+from app.agent.core import _fetch_and_build_ticket_cards, _hotel_cards, _ticket_cards, _transport_cards, agent
 from app.agent.travel_tools import execute_tool, list_capabilities
 from app.config import settings
 from app.schemas import ChatRequest, ChatResponse, HealthResponse
@@ -114,6 +114,8 @@ def _ensure_cards(result, messages):
     elif expected_type == "ticket_offer":
         args = json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False)
         result.cards = _ticket_cards(execute_tool("search_attractions", args))
+        if not result.cards:
+            result.cards = _fetch_and_build_ticket_cards(trip_id)["cards"]
         # 限制只返回 3 个
         result.cards = result.cards[:3]
     result.trip_id = trip_id

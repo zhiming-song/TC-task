@@ -308,6 +308,23 @@ function ticketCards(msg) {
   return msg.cards?.filter((card) => card.type === 'ticket_offer') || []
 }
 
+function stepForMessage(msg, index) {
+  if (ticketCards(msg).length) return 'ticket'
+  if (hotelCards(msg).length) return 'hotel'
+  if (transportCards(msg).length) return 'transport'
+  const request = messages.value[index - 1]?.apiContent || messages.value[index - 1]?.content || ''
+  if (request.includes('景点') || request.includes('门票')) return 'ticket'
+  if (request.includes('酒店')) return 'hotel'
+  return 'transport'
+}
+
+function continueNext(msg, index) {
+  const step = stepForMessage(msg, index)
+  if (step === 'ticket') return continueWithTicket(msg)
+  if (step === 'hotel') return continueWithHotel(msg)
+  return continueWithTransport(msg)
+}
+
 function canShowTickets(msg, index) {
   if (!ticketCards(msg).length) return false
   return messages.value.slice(0, index).some((item) => item.hotelSelectionConfirmed)
@@ -456,8 +473,9 @@ async function continueWithHotel(msg) {
   if (loading.value || msg.hotelSelectionConfirmed) return
   const selected = hotelCards(msg).find((card) => card.id === msg.selectedHotelId)
   if (!selected) {
+    const tripId = allCardsByType('hotel_offer')[0]?.trip_id || allCardsByType('transport_offer')[0]?.trip_id || ''
     input.value = '未选择酒店方案，进入下一项。请基于已确认的行程信息继续执行景点/门票推荐。'
-    const succeeded = await send('未选择酒店候选。现在只进入下一项，请推荐景点和门票候选；如缺少必要行程信息，请一次只追问一个问题。')
+    const succeeded = await send(`行程ID：${tripId}。未选择酒店候选。现在只进入下一项，请推荐景点和门票候选；如缺少必要行程信息，请一次只追问一个问题。`)
     if (succeeded) msg.hotelSelectionConfirmed = true
     return
   }
@@ -641,22 +659,6 @@ onMounted(async () => {
           </div>
           <p v-if="transportCards(msg).length" class="ai-disclaimer">内容由程心AI生成，仅供参考</p>
 
-          <div v-if="transportCards(msg).length" class="choice-bar">
-            <span v-if="msg.selectedCardId">
-              {{ msg.selectionConfirmed ? '已提交所选交通方案' : '已选择一个交通方案' }}
-            </span>
-            <span v-else>未选择将按 AI 推荐继续</span>
-            <button
-              class="next-button"
-              type="button"
-              :disabled="loading || msg.selectionConfirmed"
-              @click="continueWithTransport(msg)"
-            >
-              {{ msg.selectionConfirmed ? '已进入下一项' : '进入下一项' }}
-              <b v-if="!msg.selectionConfirmed">›</b>
-            </button>
-          </div>
-
           <div v-if="hotelCards(msg).length" class="card-section-title">
             <strong>酒店推荐</strong>
             <span>{{ hotelCards(msg).length }} 家酒店可对比</span>
@@ -673,22 +675,6 @@ onMounted(async () => {
               @select="selectHotel(msg, card)"
             />
           </div>
-          <div v-if="hotelCards(msg).length" class="choice-bar">
-            <span v-if="msg.selectedHotelId">
-              {{ msg.hotelSelectionConfirmed ? '已提交所选酒店' : '已选择一个酒店方案' }}
-            </span>
-            <span v-else>未选择将按 AI 推荐继续</span>
-            <button
-              class="next-button"
-              type="button"
-              :disabled="loading || msg.hotelSelectionConfirmed"
-              @click="continueWithHotel(msg)"
-            >
-              {{ msg.hotelSelectionConfirmed ? '已进入下一项' : '进入下一项' }}
-              <b v-if="!msg.hotelSelectionConfirmed">›</b>
-            </button>
-          </div>
-
           <div v-if="ticketCards(msg).length" class="card-section-title">
             <strong>景点门票库存候选</strong>
             <span>{{ ticketCards(msg).length }} 个产品可对比</span>
@@ -705,19 +691,18 @@ onMounted(async () => {
               @select="selectTicket(msg, card)"
             />
           </div>
-          <div v-if="ticketCards(msg).length && !msg.ticketSelectionConfirmed" class="choice-bar">
-            <span v-if="msg.selectedTicketIds?.length">
-              {{ msg.ticketSelectionConfirmed ? '已提交所选门票' : `已选择 ${msg.selectedTicketIds.length} 个门票产品` }}
-            </span>
-            <span v-else>未选择将按 AI 推荐继续</span>
+          <div
+            v-if="msg.role === 'assistant' && msg.content && !loading && infoConfirmed && i === messages.length - 1 && !summaryLinkVisible"
+            class="choice-bar"
+          >
+            <span>可选择方案，也可直接继续</span>
             <button
               class="next-button"
               type="button"
-              :disabled="loading || msg.ticketSelectionConfirmed"
-              @click="continueWithTicket(msg)"
+              :disabled="loading"
+              @click="continueNext(msg, i)"
             >
-              {{ msg.ticketSelectionConfirmed ? '已进行汇总' : '进行汇总' }}
-              <b v-if="!msg.ticketSelectionConfirmed">›</b>
+              进入下一项 <b>›</b>
             </button>
           </div>
         </div>
