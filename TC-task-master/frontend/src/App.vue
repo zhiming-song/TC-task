@@ -45,7 +45,7 @@ onMounted(async () => {
     <header class="header">
       <button class="back-button" aria-label="返回群聊" @click="backToGroup">‹</button>
       <div>
-        <h1>程星AI · 智能行程助手</h1>
+        <h1>程心AI · 智能行程助手</h1>
         <p class="subtitle">已导入 {{ importedCount }} 条群聊记录 · 正在整理</p>
       </div>
       <div class="status">

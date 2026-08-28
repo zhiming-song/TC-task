@@ -23,16 +23,6 @@ _jobs_lock = threading.Lock()
 _executor = ThreadPoolExecutor(max_workers=4)
 
 
-def _hotel_reply(cards):
-    lines = ["已生成酒店候选：", "", "酒店候选："]
-    for index, card in enumerate(cards, 1):
-        lines.append(
-            f"{index}. {card.get('title')}；位置：{card.get('location')}；"
-            f"{card.get('rooms')}间×{card.get('nights')}晚总价：¥{card.get('total_price_yuan')}"
-        )
-    return "\n".join(lines)
-
-
 def _ensure_cards(result, messages):
     history = "\n".join(message.content for message in messages)
     latest_user = next((message.content for message in reversed(messages) if message.role == "user"), "")
@@ -112,14 +102,32 @@ def _ensure_cards(result, messages):
             "preferred_locations": trip.get("lodging_locations") or [],
         }, ensure_ascii=False)
         result.cards = _hotel_cards(execute_tool("search_hotels", args))
-        count = len(re.findall(r"(?m)^\s*\d+[.、]", result.reply))
+        # 从 reply 中检测 AI 推荐了几家酒店
+        # 优先匹配新格式：「【推荐N家酒店】」
+        count = re.search(r"【推荐(\d+)家酒店】", result.reply)
+        if not count:
+            count = re.search(r"【推荐(\d+)个(?:景点|景区)】", result.reply)
+        if not count:
+            # 备选：匹配 "推荐以下N家" 或 "以下.*家.*酒店" 等模式
+            count = re.search(r"(?:以下|共|推荐)\s*(\d+)\s*(?:家|个).*?(?:酒店|住宿)", result.reply)
+            count = int(count.group(1)) if count else 0
+        else:
+            count = int(count.group(1))
         if count:
             result.cards = result.cards[:count]
-        if result.cards:
-            result.reply = _hotel_reply(result.cards)
+        # 保持 AI 原始回复，不覆盖推荐理由
     elif expected_type == "ticket_offer":
         args = json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False)
         result.cards = _ticket_cards(execute_tool("search_attractions", args))
+        # 从 reply 中检测 AI 推荐了几个景点
+        count = re.search(r"【推荐(\d+)个(?:景点|景区|门票)】", result.reply)
+        if not count:
+            count = re.search(r"(?:以下|共|推荐)\s*(\d+)\s*(?:个|款|种).*?(?:景点|门票|景区|产品)", result.reply)
+            count = int(count.group(1)) if count else 0
+        else:
+            count = int(count.group(1))
+        if count:
+            result.cards = result.cards[:count]
     result.trip_id = trip_id
     return result
 
@@ -151,7 +159,7 @@ def health() -> HealthResponse:
         status="ok",
         model=agent.model,
         api_key_configured=bool(settings.deepseek_api_key),
-        assistant="程星AI智能行程助手",
+        assistant="程心AI智能行程助手",
         tool_mode=settings.travel_tools_mode,
     )
 
@@ -160,7 +168,7 @@ def health() -> HealthResponse:
 def capabilities() -> dict:
     """返回当前行程助手可调用的业务工具。"""
     return {
-        "assistant": "程星AI智能行程助手",
+        "assistant": "程心AI智能行程助手",
         "mode": settings.travel_tools_mode,
         "tools": list_capabilities(),
     }

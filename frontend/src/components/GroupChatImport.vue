@@ -125,7 +125,7 @@ function continueToDeeptrip() {
       <div class="import-tip">
         <span class="ai-mark">✦</span>
         <div>
-          <strong>程星AI 可以帮大家整理方案</strong>
+          <strong>程心AI 可以帮大家整理方案</strong>
           <span>勾选旅行相关消息，一键提取每个人的意见</span>
         </div>
       </div>
@@ -210,7 +210,7 @@ function continueToDeeptrip() {
     <transition name="toast-fade">
       <div v-if="showForwardToast" class="toast-mask" @click.self="closeForwardToast">
         <div class="toast-card">
-          <strong class="toast-title">即将离开微信，打开"程星AI"</strong>
+          <strong class="toast-title">即将离开微信，打开"程心AI"</strong>
           <div class="toast-actions">
             <button class="toast-btn cancel" @click="closeForwardToast">取消</button>
             <button class="toast-btn confirm" @click="continueToDeeptrip">继续</button>

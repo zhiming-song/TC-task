@@ -29,7 +29,7 @@ const emit = defineEmits(['back', 'forward-app'])
             <strong>文件传输助手</strong>
             <small>20:15</small>
           </div>
-          <p class="chat-preview">程星AI：已收到群聊记录，正在整理</p>
+          <p class="chat-preview">程心AI：已收到群聊记录，正在整理</p>
         </div>
       </div>
 

@@ -145,7 +145,7 @@ function continueToDeeptrip() {
     <transition name="toast-fade">
       <div v-if="showForwardToast" class="toast-mask" @click.self="closeForwardToast">
         <div class="toast-card">
-          <strong class="toast-title">即将离开微信，打开"程星AI"</strong>
+          <strong class="toast-title">即将离开微信，打开"程心AI"</strong>
           <div class="toast-actions">
             <button class="toast-btn cancel" @click="closeForwardToast">取消</button>
             <button class="toast-btn confirm" @click="continueToDeeptrip">继续</button>

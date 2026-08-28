@@ -1,4 +1,4 @@
-# 程星AI智能行程助手 Backend
+# 程心AI智能行程助手 Backend
 
 基于 FastAPI 的受控行程规划 Agent。通过 DeepSeek 理解群聊和用户意图，使用确定性工具完成需求校验、演示交通/酒店/门票查询、按天日程、ABC方案、均摊和投票草案，并将业务数据保存到 SQLite。
 

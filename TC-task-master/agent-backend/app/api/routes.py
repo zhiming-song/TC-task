@@ -42,7 +42,7 @@ def health() -> HealthResponse:
         status="ok",
         model=agent.model,
         api_key_configured=bool(settings.deepseek_api_key),
-        assistant="程星AI智能行程助手",
+        assistant="程心AI智能行程助手",
         tool_mode=settings.travel_tools_mode,
     )
 
@@ -51,7 +51,7 @@ def health() -> HealthResponse:
 def capabilities() -> dict:
     """返回当前行程助手可调用的业务工具。"""
     return {
-        "assistant": "程星AI智能行程助手",
+        "assistant": "程心AI智能行程助手",
         "mode": settings.travel_tools_mode,
         "tools": list_capabilities(),
     }

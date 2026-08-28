@@ -1,7 +1,7 @@
 # TC-task-master 项目备忘
 
 ## 项目概要
-程星AI智能行程助手：FastAPI 受控行程规划 Agent（DeepSeek）+ Vue3/Vite 聊天前端。docker-compose 依赖外部 gateway 网络（本机无 docker，走本地启动）。
+程心AI智能行程助手：FastAPI 受控行程规划 Agent（DeepSeek）+ Vue3/Vite 聊天前端。docker-compose 依赖外部 gateway 网络（本机无 docker，走本地启动）。
 
 ## 本地启动方式（验证可用）
 - 后端（8000）：`/Users/user/Desktop/TC-task-master/agent-backend/.venv/bin/uvicorn app.main:app --app-dir /Users/user/Desktop/TC-task-master/agent-backend --host 0.0.0.0 --port 8000`

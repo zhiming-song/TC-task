@@ -629,7 +629,7 @@ onMounted(async () => {
               />
             </div>
           </div>
-          <p v-if="transportCards(msg).length" class="ai-disclaimer">内容由程星AI生成，仅供参考</p>
+          <p v-if="transportCards(msg).length" class="ai-disclaimer">内容由程心AI生成，仅供参考</p>
 
           <div v-if="transportCards(msg).length" class="choice-bar">
             <span v-if="msg.selectedCardId">

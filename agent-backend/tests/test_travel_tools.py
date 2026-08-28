@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.agent.core import _hotel_cards, _ticket_cards, _transport_cards
+from app.schemas import ChatResponse
 from app.agent.travel_tools import (
     TravelToolError,
     build_daily_itinerary,
@@ -160,6 +161,7 @@ class TravelToolsTest(unittest.TestCase):
             ),
         )
         cards = _transport_cards(raw)
+        ChatResponse(reply="ok", model="test", cards=cards)
         self.assertEqual([card["transport_type"] for card in cards], ["train", "train", "flight", "flight"])
         self.assertTrue(all(card["remaining_inventory"] >= 5 for card in cards))
         self.assertTrue(all(card["departure_time"] and card["arrival_time"] for card in cards))
@@ -189,6 +191,7 @@ class TravelToolsTest(unittest.TestCase):
         )
         raw = json.dumps({"ok": True, "result": response}, ensure_ascii=False)
         cards = _hotel_cards(raw)
+        ChatResponse(reply="ok", model="test", cards=cards)
         self.assertEqual(len(cards), 6)
         self.assertTrue(all(card["remaining_inventory"] >= 3 for card in cards))
         self.assertTrue(all(card["booking_url"] == "https://www.ly.com/hotel" for card in cards))
@@ -215,6 +218,7 @@ class TravelToolsTest(unittest.TestCase):
             ),
         )
         cards = _ticket_cards(raw)
+        ChatResponse(reply="ok", model="test", cards=cards)
         self.assertGreaterEqual(len(cards), 4)
         self.assertEqual(cards[0]["attraction_name"], "上海迪士尼乐园")
         self.assertTrue(all(card["booking_url"] == "https://www.ly.com/scenery/" for card in cards))
