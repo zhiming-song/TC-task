@@ -1,0 +1,55 @@
+name: tc-agent-stack
+
+services:
+  tc-agent-backend:
+    build:
+      context: ./agent-backend
+      dockerfile: Dockerfile
+    container_name: tc-agent-backend
+    restart: unless-stopped
+    env_file:
+      - ./agent-backend/.env
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      SQLITE_PATH: /app/data/travel_agent.db
+      CORS_ORIGINS: http://localhost,http://127.0.0.1
+      TZ: Asia/Shanghai
+    expose:
+      - "8000"
+    volumes:
+      - tc-agent-sqlite-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - gateway
+
+  tc-agent-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE_PATH: /tc/
+        VITE_API_BASE_URL: /tc/api
+    container_name: tc-agent-frontend
+    restart: unless-stopped
+    depends_on:
+      tc-agent-backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    networks:
+      - gateway
+
+volumes:
+  tc-agent-sqlite-data:
+    name: tc-agent-sqlite-data
+
+networks:
+  gateway:
+    external: true
+    name: gateway
