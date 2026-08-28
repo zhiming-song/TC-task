@@ -701,7 +701,7 @@ onMounted(async () => {
             <button
               class="next-button"
               type="button"
-              :disabled="loading || !msg.selectedTicketIds?.length || msg.ticketSelectionConfirmed"
+              :disabled="loading || msg.ticketSelectionConfirmed"
               @click="continueWithTicket(msg)"
             >
               {{ msg.ticketSelectionConfirmed ? '已进行汇总' : '进行汇总' }}
