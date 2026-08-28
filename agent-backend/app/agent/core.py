@@ -17,6 +17,7 @@ from app.storage import repository
 class AgentRunResult:
     reply: str
     cards: list[dict[str, Any]] = field(default_factory=list)
+    trip_id: str = ""
 
 
 def _transport_cards(tool_result: str) -> list[dict[str, Any]]:
@@ -247,6 +248,7 @@ class Agent:
         payload = self._build_payload(messages)
         client = get_client()
         cards: list[dict[str, Any]] = []
+        trip_id = ""
         latest_user_text = next((item.content for item in reversed(messages) if item.role == "user"), "")
         is_summary_request = any(
             phrase in latest_user_text
@@ -273,7 +275,7 @@ class Agent:
                         trip = bundle["trip"]
                         offers = [json.loads(row["payload_json"]) for row in bundle["attraction_tickets"]]
                         cards.extend(_ticket_cards(json.dumps({"ok": True, "result": {"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"], "attractions": offers, "data_mode": "demo_estimate", "realtime": False, "bookable": False}}, ensure_ascii=False)))
-                return AgentRunResult(reply=reply, cards=[] if is_summary_request else cards)
+                return AgentRunResult(reply=reply, cards=[] if is_summary_request else cards, trip_id=trip_id)
 
             payload.append(
                 {
@@ -284,6 +286,13 @@ class Agent:
             )
             for tool_call in message.tool_calls:
                 tool_result = execute_tool(tool_call.function.name, tool_call.function.arguments)
+                try:
+                    tool_payload = json.loads(tool_result)
+                    tool_trip_id = (tool_payload.get("result") or {}).get("trip_id")
+                    if tool_trip_id:
+                        trip_id = str(tool_trip_id)
+                except (json.JSONDecodeError, AttributeError):
+                    pass
                 if tool_call.function.name == "search_transport":
                     cards.extend(_transport_cards(tool_result))
                 elif tool_call.function.name == "search_hotels":
@@ -302,6 +311,7 @@ class Agent:
         return AgentRunResult(
             reply=fallback,
             cards=[] if is_summary_request else cards,
+            trip_id=trip_id,
         )
 
     def chat(self, messages: list[Message], temperature: float = 0.3) -> str:

@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.agent.core import _hotel_cards, _ticket_cards, agent
+from app.agent.core import _hotel_cards, _ticket_cards, _transport_cards, agent
 from app.agent.travel_tools import execute_tool, list_capabilities
 from app.config import settings
 from app.schemas import ChatRequest, ChatResponse, HealthResponse
@@ -39,7 +39,7 @@ def _ensure_cards(result, messages):
     if "旅行计划汇总" in latest_user or "完整行程草案" in latest_user or "生成旅行计划" in latest_user:
         result.cards = []
         return result
-    # 用户明确问景点/门票时，只返回景点卡片
+    # 按当前推荐环节兜底生成对应产品卡片
     wants_attractions = any(
         phrase in latest_user
         for phrase in ("推荐景点", "景点/门票", "景点和门票", "搜索景点", "搜索门票", "景点门票", "推荐景区")
@@ -51,7 +51,7 @@ def _ensure_cards(result, messages):
         # 否则继续生成景点卡片
         expected_type = "ticket_offer"
     else:
-        # 其他情况（酒店环节）
+        # 识别酒店或交通环节
         expected_type = ""
         wants_hotels = any(
             phrase in latest_user
@@ -59,20 +59,37 @@ def _ensure_cards(result, messages):
         ) or any(word in latest_user for word in ("酒店", "住宿", "入住", "酒店方案"))
         if wants_hotels:
             expected_type = "hotel_offer"
+        elif any(
+            phrase in latest_user
+            for phrase in ("开始推荐交通", "推荐交通", "交通方案", "搜索交通", "开始规划", "信息确认无误")
+        ) or any(word in latest_user for word in ("高铁", "火车", "机票", "航班")):
+            expected_type = "transport_offer"
         else:
             return result
     # 如果已有符合当前环节的卡片，无需补充
     if result.cards and all(card.get("type") == expected_type for card in result.cards):
         return result
-    trip_match = re.search(r"trip_[A-Za-z0-9_]+", history)
-    if not trip_match:
+    trip_id = getattr(result, "trip_id", "")
+    if not trip_id:
+        trip_match = re.search(r"trip_[A-Za-z0-9_]+", history)
+        trip_id = trip_match.group(0) if trip_match else ""
+    if not trip_id:
         return result
-    trip_id = trip_match.group(0)
     bundle = repository.get_trip_bundle(trip_id)
     if not bundle or not bundle.get("trip"):
         return result
     trip = bundle["trip"]
-    if expected_type == "hotel_offer":
+    if expected_type == "transport_offer":
+        args = json.dumps({
+            "trip_id": trip_id,
+            "origin": trip["origin"],
+            "destination": trip["destination"],
+            "departure_date": trip["start_date"],
+            "return_date": trip["end_date"],
+            "travelers": trip["travelers"],
+        }, ensure_ascii=False)
+        result.cards = _transport_cards(execute_tool("search_transport", args))
+    elif expected_type == "hotel_offer":
         args = json.dumps({
             "trip_id": trip_id,
             "destination": trip["destination"],
@@ -90,6 +107,7 @@ def _ensure_cards(result, messages):
     elif expected_type == "ticket_offer":
         args = json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False)
         result.cards = _ticket_cards(execute_tool("search_attractions", args))
+    result.trip_id = trip_id
     return result
 
 
@@ -99,23 +117,15 @@ def _run_job(job_id: str, request: ChatRequest) -> None:
         _jobs[job_id]["progress"] = "正在分析你的行程需求…"
     try:
         result = agent.run(request.messages, temperature=request.temperature)
-        # 只有当用户明确要求景点/门票时，才补充门票卡片
-        latest_user = next((message.content for message in reversed(request.messages) if message.role == "user"), "")
-        if not result.cards and any(word in latest_user for word in ("景点", "门票", "景区", "游玩", "推荐景区")):
-            history = "\n".join(message.content for message in request.messages)
-            match = re.search(r'(?:行程ID：|trip_id[：:"]+)(trip_[A-Za-z0-9_]+)', history)
-            if not match:
-                match = re.search(r"(trip_[A-Za-z0-9_]+)", history)
-            if match:
-                trip_id = match.group(1)
-                bundle = repository.get_trip_bundle(trip_id)
-                if bundle and bundle.get("trip"):
-                    trip = bundle["trip"]
-                    raw = execute_tool("search_attractions", json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False))
-                    result.cards = _ticket_cards(raw)
         result = _ensure_cards(result, request.messages)
         with _jobs_lock:
-            _jobs[job_id].update(status="completed", progress="已完成", reply=result.reply, cards=result.cards)
+            _jobs[job_id].update(
+                status="completed",
+                progress="已完成",
+                reply=result.reply,
+                cards=result.cards,
+                trip_id=result.trip_id,
+            )
     except Exception as exc:
         logger.exception("轮询任务执行失败")
         with _jobs_lock:
@@ -192,7 +202,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         logger.exception("调用模型失败")
         raise HTTPException(status_code=502, detail=f"调用模型失败: {exc}") from exc
     result = _ensure_cards(result, request.messages)
-    return ChatResponse(reply=result.reply, model=agent.model, cards=result.cards)
+    return ChatResponse(reply=result.reply, model=agent.model, cards=result.cards, trip_id=result.trip_id)
 
 
 @router.post("/chat/jobs")
@@ -220,6 +230,7 @@ def chat_stream(request: ChatRequest) -> StreamingResponse:
     def event_source() -> Iterator[str]:
         try:
             result = agent.run(request.messages, temperature=request.temperature)
+            result = _ensure_cards(result, request.messages)
             for index in range(0, len(result.reply), 24):
                 token = result.reply[index : index + 24]
                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"

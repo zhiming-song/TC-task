@@ -19,6 +19,7 @@ class ChatResponse(BaseModel):
     reply: str
     model: str
     cards: list[dict[str, Any]] = Field(default_factory=list)
+    trip_id: str = ""
 
 
 class HealthResponse(BaseModel):
