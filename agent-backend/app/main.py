@@ -31,6 +31,9 @@ os.makedirs(JIUDIAN_DIR, exist_ok=True)
 os.makedirs(JINGDIAN_DIR, exist_ok=True)
 app.mount("/images/jiudian", StaticFiles(directory=JIUDIAN_DIR), name="jiudian")
 app.mount("/images/jingdian", StaticFiles(directory=JINGDIAN_DIR), name="jingdian")
+IMAGES_DIR = os.path.join(BASE_DIR, "..", "images")
+os.makedirs(IMAGES_DIR, exist_ok=True)
+app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
 
 
 @app.get("/")

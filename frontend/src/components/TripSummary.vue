@@ -228,7 +228,16 @@ function getEmptySlots(section, card) {
   <div class="summary-page">
     <!-- 标题区 -->
     <div class="header">
-      <h1 class="header-title">{{ tripInfo.title }}</h1>
+      <div class="header-top">
+        <h1 class="header-title">{{ tripInfo.title }}</h1>
+        <svg class="share-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="5" r="3"/>
+          <circle cx="6" cy="12" r="3"/>
+          <circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+      </div>
       <p class="header-subtitle">AI 综合分析群聊偏好，给出最佳方案推荐</p>
       <div class="header-meta">
         <div class="header-meta-item">
@@ -542,17 +551,35 @@ function getEmptySlots(section, card) {
   padding: 12px 16px 16px;
   border-bottom: 1px solid var(--line);
 }
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .header-title {
   font-size: 19px;
   font-weight: 700;
   color: var(--text-1);
-  margin: 0 0 4px;
+  margin: 0;
   line-height: 1.3;
+  flex: 1;
+}
+.share-icon {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  color: var(--text-2);
+  flex-shrink: 0;
+  margin-left: 12px;
+  transition: color 0.2s;
+}
+.share-icon:hover {
+  color: var(--tc-orange);
 }
 .header-subtitle {
   font-size: 12.5px;
   color: var(--text-2);
-  margin: 0;
+  margin: 4px 0 0;
 }
 .header-meta {
   display: flex;
