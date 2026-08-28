@@ -174,8 +174,6 @@ async function runJob(suppressCards = false) {
         }
       }
       if (!suppressCards && job.cards?.length) messages.value[index].cards = job.cards
-      // 内部保留行程标识，供下一轮产品卡片查询使用
-      if (job.trip_id) messages.value[index].apiContent = `${job.reply}\n\n行程ID：${job.trip_id}`
       if (job.status === 'failed') throw new Error(job.error || '生成失败')
       completed = job.status === 'completed'
       if (!completed) await new Promise((resolve) => setTimeout(resolve, 400))
