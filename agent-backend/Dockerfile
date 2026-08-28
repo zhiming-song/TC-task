@@ -14,7 +14,9 @@ COPY requirements.txt ./
 RUN pip install --index-url https://pypi.org/simple -r requirements.txt
 
 COPY app ./app
-RUN mkdir -p /app/data && chown -R appuser:appuser /app
+# 预创建运行时静态资源目录，避免非 root 用户启动时无权写入根目录。
+RUN mkdir -p /app/data /jiudian /jingdian /images \
+    && chown -R appuser:appuser /app /jiudian /jingdian /images
 
 USER appuser
 
