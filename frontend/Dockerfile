@@ -52,6 +52,19 @@ server {
     proxy_read_timeout 300s;
   }
 
+  # 产品图片由后端静态资源路由提供
+  location /images/ {
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $backend_upstream http://tc-agent-backend:8000;
+    proxy_pass $backend_upstream;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Connection "";
+  }
+
   # SPA：所有路径兜底回 index.html（含 /assets 等静态资源由 try_files 优先命中）
   location / {
     try_files $uri $uri/ /index.html;
