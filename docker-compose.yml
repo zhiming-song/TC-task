@@ -1,6 +1,26 @@
 name: tc-agent-stack
 
 services:
+  tc-agent-gateway:
+    image: docker.m.daocloud.io/library/nginx:1.27-alpine
+    container_name: tc-agent-gateway
+    restart: unless-stopped
+    depends_on:
+      tc-agent-frontend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/tankpizza-http.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - gateway
+
   tc-agent-backend:
     build:
       context: ./agent-backend
@@ -8,12 +28,13 @@ services:
     container_name: tc-agent-backend
     restart: unless-stopped
     env_file:
-      - ./agent-backend/.env
+      - path: ./agent-backend/.env
+        required: false
     environment:
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       SQLITE_PATH: /app/data/travel_agent.db
-      CORS_ORIGINS: https://www.tankpizza.cn,https://tankpizza.cn,http://localhost:5173,http://localhost,http://127.0.0.1
+      CORS_ORIGINS: http://www.tankpizza.cn,http://tankpizza.cn,http://localhost:5173,http://localhost,http://127.0.0.1
       TZ: Asia/Shanghai
     expose:
       - "8000"
@@ -42,10 +63,9 @@ services:
         condition: service_healthy
     expose:
       - "80"
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
     networks:
       - internal
+      - gateway
 
 volumes:
   tc-agent-sqlite-data:
@@ -55,3 +75,5 @@ networks:
   # 站内互访（前端 -> 后端 /api 反代），不接入外层网关
   internal:
     name: tc-agent-internal
+  gateway:
+    name: tc-agent-gateway
