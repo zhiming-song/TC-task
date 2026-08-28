@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch } from 'vue'
 
 const props = defineProps({
   sections: {
@@ -56,6 +56,25 @@ function updateVoteData(sectionKey, cardId, voters) {
 
 // 暴露给父组件
 defineExpose({ updateVoteData })
+
+// 监听 sections 变化，自动回填已选模块的投票人并锁定
+watch(
+  () => props.sections,
+  (sections) => {
+    if (!sections) return
+    sections.forEach((section) => {
+      if (section.selectedIds && section.selectedIds.length > 0) {
+        section.selectedIds.forEach((cardId) => {
+          const voters = section.voters?.[cardId] || []
+          if (voters.length > 0) {
+            voteState[section.key] = { ...(voteState[section.key] || {}), [cardId]: voters }
+          }
+        })
+      }
+    })
+  },
+  { immediate: true }
+)
 
 // 是否锁定（AI已确认）
 function isLocked(section) {
@@ -297,13 +316,13 @@ function getEmptySlots(section, card) {
             <svg class="module-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
             </svg>
-            交通 · {{ section.cards.length }} 个方案
+            交通方案
           </div>
-          <div class="module-filter">综合考虑时间和价格</div>
+          <div class="module-filter">综合考虑时间和价格 TOP 3</div>
         </div>
 
         <div
-          v-for="card in section.cards"
+          v-for="card in section.cards.slice(0, 3)"
           :key="card.id"
           class="trans"
           :class="{ selected: isSelected(section, card), locked: isLocked(section) }"
@@ -368,13 +387,13 @@ function getEmptySlots(section, card) {
               <path d="M5 21V7l8-4v18"/>
               <path d="M19 21V11l-6-4"/>
             </svg>
-            酒店 · {{ section.cards.length }} 个方案
+            酒店方案
           </div>
-          <div class="module-filter">AI 综合偏好推荐</div>
+          <div class="module-filter">AI 综合偏好推荐 TOP 3</div>
         </div>
 
         <div
-          v-for="card in section.cards"
+          v-for="card in section.cards.slice(0, 3)"
           :key="card.id"
           class="room"
           :class="{ selected: isSelected(section, card), locked: isLocked(section) }"
@@ -450,13 +469,13 @@ function getEmptySlots(section, card) {
             <svg class="module-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M2 9V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v3a2 2 0 1 0 0 6v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-6z"/>
             </svg>
-            景区门票 · {{ section.cards.length }} 个方案
+            景区门票方案
           </div>
-          <div class="module-filter">已选高性价比</div>
+          <div class="module-filter">已选高性价比 TOP 3</div>
         </div>
 
         <div
-          v-for="card in section.cards"
+          v-for="card in section.cards.slice(0, 3)"
           :key="card.id"
           class="ticket"
           :class="{ selected: isSelected(section, card), locked: isLocked(section) }"

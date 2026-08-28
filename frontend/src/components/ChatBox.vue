@@ -328,6 +328,9 @@ function allCardsByType(type) {
   return cards
 }
 
+// 当前用户（用于投票记录）
+const CURRENT_USER = 'Dora'
+
 const summarySections = computed(() => [
   {
     key: 'transport',
@@ -337,6 +340,9 @@ const summarySections = computed(() => [
       ? [confirmedTransportId.value]
       : (summaryDraft.value.transport ? [summaryDraft.value.transport] : []),
     locked: Boolean(confirmedTransportId.value),
+    voters: confirmedTransportId.value
+      ? { [confirmedTransportId.value]: [CURRENT_USER] }
+      : {},
   },
   {
     key: 'hotel',
@@ -346,6 +352,9 @@ const summarySections = computed(() => [
       ? [confirmedHotelId.value]
       : (summaryDraft.value.hotel ? [summaryDraft.value.hotel] : []),
     locked: Boolean(confirmedHotelId.value),
+    voters: confirmedHotelId.value
+      ? { [confirmedHotelId.value]: [CURRENT_USER] }
+      : {},
   },
   {
     key: 'ticket',
@@ -355,6 +364,9 @@ const summarySections = computed(() => [
       ? confirmedTicketIds.value
       : summaryDraft.value.ticket,
     locked: confirmedTicketIds.value.length > 0,
+    voters: confirmedTicketIds.value.length > 0
+      ? Object.fromEntries(confirmedTicketIds.value.map((id) => [id, [CURRENT_USER]]))
+      : {},
   },
 ])
 
@@ -615,19 +627,19 @@ onMounted(async () => {
 
           <div v-if="flightCards(msg).length" class="card-section-title">
             <strong>航班方案</strong>
-            <span>横向滑动查看 {{ flightCards(msg).length }} 个方案</span>
+            <span>{{ flightCards(msg).length }} 个方案可对比</span>
           </div>
-          <div v-if="flightCards(msg).length" class="flight-scroll">
-            <div v-for="(card, idx) in flightCards(msg)" :key="card.id" class="flight-cell">
-              <TransportCard
-                :card="card"
-                :index="idx + 1"
-                :reason="transportReason(card, flightCards(msg))"
-                :recommended="isRecommendedCard(card, msg) || isRecommendedCardLegacy(flightCards(msg), card)"
-                :selected="msg.selectedCardId === card.id"
-                @select="selectTransport(msg, card)"
-              />
-            </div>
+          <div v-if="flightCards(msg).length" class="flight-list">
+            <TransportCard
+              v-for="(card, idx) in flightCards(msg)"
+              :key="card.id"
+              :card="card"
+              :index="idx + 1"
+              :reason="transportReason(card, flightCards(msg))"
+              :recommended="isRecommendedCard(card, msg) || isRecommendedCardLegacy(flightCards(msg), card)"
+              :selected="msg.selectedCardId === card.id"
+              @select="selectTransport(msg, card)"
+            />
           </div>
           <p v-if="transportCards(msg).length" class="ai-disclaimer">内容由程心AI生成，仅供参考</p>
 
@@ -1099,27 +1111,13 @@ button:disabled {
   text-align: center;
 }
 
+.flight-list,
 .train-list,
 .hotel-list {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.flight-scroll {
-  width: 100%;
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
-.flight-cell {
-  flex: 0 0 244px;
-  max-width: 78%;
 }
 
 .confirm-bar {

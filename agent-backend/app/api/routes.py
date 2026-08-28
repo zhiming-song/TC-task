@@ -49,6 +49,7 @@ def _ensure_cards(result, messages):
     if wants_attractions:
         # 如果用户明确要求景点，有景点卡片就直接返回
         if result.cards and all(card.get("type") == "ticket_offer" for card in result.cards):
+            result.cards = result.cards[:3]
             return result
         # 否则继续生成景点卡片
         expected_type = "ticket_offer"
@@ -71,15 +72,18 @@ def _ensure_cards(result, messages):
             return result
     # 如果已有符合当前环节的卡片，无需补充
     if result.cards and all(card.get("type") == expected_type for card in result.cards):
+        result.cards = result.cards[:3]
         return result
     trip_id = getattr(result, "trip_id", "")
     if not trip_id:
         trip_match = re.search(r"trip_[A-Za-z0-9_]+", history)
         trip_id = trip_match.group(0) if trip_match else ""
     if not trip_id:
+        result.cards = result.cards[:3]
         return result
     bundle = repository.get_trip_bundle(trip_id)
     if not bundle or not bundle.get("trip"):
+        result.cards = result.cards[:3]
         return result
     trip = bundle["trip"]
     if expected_type == "transport_offer":
@@ -92,6 +96,8 @@ def _ensure_cards(result, messages):
             "travelers": trip["travelers"],
         }, ensure_ascii=False)
         result.cards = _transport_cards(execute_tool("search_transport", args))
+        # 限制只返回 3 个交通方案
+        result.cards = result.cards[:3]
     elif expected_type == "hotel_offer":
         args = json.dumps({
             "trip_id": trip_id,
@@ -102,33 +108,17 @@ def _ensure_cards(result, messages):
             "preferred_locations": trip.get("lodging_locations") or [],
         }, ensure_ascii=False)
         result.cards = _hotel_cards(execute_tool("search_hotels", args))
-        # 从 reply 中检测 AI 推荐了几家酒店
-        # 优先匹配新格式：「【推荐N家酒店】」
-        count = re.search(r"【推荐(\d+)家酒店】", result.reply)
-        if not count:
-            count = re.search(r"【推荐(\d+)个(?:景点|景区)】", result.reply)
-        if not count:
-            # 备选：匹配 "推荐以下N家" 或 "以下.*家.*酒店" 等模式
-            count = re.search(r"(?:以下|共|推荐)\s*(\d+)\s*(?:家|个).*?(?:酒店|住宿)", result.reply)
-            count = int(count.group(1)) if count else 0
-        else:
-            count = int(count.group(1))
-        if count:
-            result.cards = result.cards[:count]
+        # 限制只返回 3 家酒店
+        result.cards = result.cards[:3]
         # 保持 AI 原始回复，不覆盖推荐理由
     elif expected_type == "ticket_offer":
         args = json.dumps({"trip_id": trip_id, "destination": trip["destination"], "travelers": trip["travelers"]}, ensure_ascii=False)
         result.cards = _ticket_cards(execute_tool("search_attractions", args))
-        # 从 reply 中检测 AI 推荐了几个景点
-        count = re.search(r"【推荐(\d+)个(?:景点|景区|门票)】", result.reply)
-        if not count:
-            count = re.search(r"(?:以下|共|推荐)\s*(\d+)\s*(?:个|款|种).*?(?:景点|门票|景区|产品)", result.reply)
-            count = int(count.group(1)) if count else 0
-        else:
-            count = int(count.group(1))
-        if count:
-            result.cards = result.cards[:count]
+        # 限制只返回 3 个
+        result.cards = result.cards[:3]
     result.trip_id = trip_id
+    # 统一限制所有卡片最多 3 个，覆盖所有返回路径
+    result.cards = result.cards[:3]
     return result
 
 

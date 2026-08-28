@@ -122,13 +122,6 @@ function continueToDeeptrip() {
         <button class="nav-icon more" aria-label="更多">•••</button>
       </header>
 
-      <div class="import-tip">
-        <span class="ai-mark">✦</span>
-        <div>
-          <strong>程心AI 可以帮大家整理方案</strong>
-          <span>勾选旅行相关消息，一键提取每个人的意见</span>
-        </div>
-      </div>
 
       <main ref="messageListEl" class="message-list">
         <div class="date-separator">8月26日 晚上</div>
