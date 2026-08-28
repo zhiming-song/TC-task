@@ -39,11 +39,23 @@ def _ensure_cards(result, messages):
     if "旅行计划汇总" in latest_user or "完整行程草案" in latest_user or "生成旅行计划" in latest_user:
         result.cards = []
         return result
+    # 首轮只整理信息，必须等待用户确认后再展示产品
+    if not any(message.role == "assistant" for message in messages):
+        result.cards = []
+        return result
     # 按当前推荐环节兜底生成对应产品卡片
     wants_attractions = any(
         phrase in latest_user
-        for phrase in ("推荐景点", "景点/门票", "景点和门票", "搜索景点", "搜索门票", "景点门票", "推荐景区")
-    ) or any(word in latest_user for word in ("景点", "门票", "游玩", "景区"))
+        for phrase in (
+            "推荐景点",
+            "推荐门票",
+            "景点/门票推荐",
+            "推荐景点和门票",
+            "搜索景点",
+            "搜索门票",
+            "推荐景区",
+        )
+    )
     if wants_attractions:
         # 如果用户明确要求景点，有景点卡片就直接返回
         if result.cards and all(card.get("type") == "ticket_offer" for card in result.cards):
@@ -55,16 +67,17 @@ def _ensure_cards(result, messages):
         expected_type = ""
         wants_hotels = any(
             phrase in latest_user
-            for phrase in ("酒店推荐", "酒店库存候选", "搜索酒店", "进入酒店", "进入下一项", "下一项", "继续")
-        ) or any(word in latest_user for word in ("酒店", "住宿", "入住", "酒店方案"))
+            for phrase in ("酒店推荐", "推荐酒店", "酒店库存候选", "搜索酒店", "进入酒店", "执行酒店推荐")
+        )
         if wants_hotels:
             expected_type = "hotel_offer"
         elif any(
             phrase in latest_user
-            for phrase in ("开始推荐交通", "推荐交通", "交通方案", "搜索交通", "开始规划", "信息确认无误")
-        ) or any(word in latest_user for word in ("高铁", "火车", "机票", "航班")):
+            for phrase in ("开始推荐交通", "推荐交通", "交通方案推荐", "搜索交通", "信息确认无误")
+        ):
             expected_type = "transport_offer"
         else:
+            result.cards = []
             return result
     # 如果已有符合当前环节的卡片，无需补充
     if result.cards and all(card.get("type") == expected_type for card in result.cards):

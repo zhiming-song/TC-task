@@ -54,7 +54,10 @@ class CardGuaranteeTest(unittest.TestCase):
         self.ensure_for("请推荐景点和门票", "search_attractions", "_ticket_cards", "ticket_offer")
 
     def test_current_run_trip_id_supports_transport_card_fallback(self):
-        messages = [SimpleNamespace(role="user", content="信息确认无误，请开始推荐交通方案")]
+        messages = [
+            SimpleNamespace(role="assistant", content="请确认以上信息"),
+            SimpleNamespace(role="user", content="信息确认无误，请开始推荐交通方案"),
+        ]
         result = SimpleNamespace(reply="已推荐交通方案", cards=[], trip_id="trip_current123")
 
         with (
@@ -65,6 +68,35 @@ class CardGuaranteeTest(unittest.TestCase):
             ensured = _ensure_cards(result, messages)
 
         self.assertEqual(ensured.cards[0]["type"], "transport_offer")
+
+    def test_first_round_never_emits_product_cards(self):
+        messages = [SimpleNamespace(role="user", content="北京去上海，住虹桥火车站附近")]
+        result = SimpleNamespace(
+            reply="请确认以上信息",
+            cards=[{"type": "transport_offer"}],
+            trip_id="trip_current123",
+        )
+
+        ensured = _ensure_cards(result, messages)
+
+        self.assertEqual(ensured.cards, [])
+
+    def test_station_preference_does_not_trigger_transport_cards(self):
+        messages = [
+            SimpleNamespace(role="assistant", content="请确认以上信息"),
+            SimpleNamespace(role="user", content="酒店住虹桥火车站附近方便，返程不用赶"),
+        ]
+        result = SimpleNamespace(
+            reply="已更新行程信息，请再次确认",
+            cards=[{"type": "transport_offer"}],
+            trip_id="trip_current123",
+        )
+
+        with patch("app.api.routes.execute_tool") as execute_mock:
+            ensured = _ensure_cards(result, messages)
+
+        self.assertEqual(ensured.cards, [])
+        execute_mock.assert_not_called()
 
 
 if __name__ == "__main__":
